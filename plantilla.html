@@ -27,6 +27,14 @@
   .tot .b{flex:1;min-width:140px;background:#10131a;border:1px solid var(--line);border-radius:12px;padding:12px;}
   .tot .b .l{color:var(--mut);font-size:12px;} .tot .b .v{font-size:20px;font-weight:700;margin-top:3px;}
   .tot .grand{background:linear-gradient(135deg,#1e2a4a,#16203a);border-color:#2f4a8a;}
+  .ppl{display:flex;flex-wrap:wrap;gap:10px;}
+  .ppl .p{flex:1;min-width:200px;background:#10131a;border:1px solid var(--line);border-radius:12px;padding:13px;}
+  .ppl .p .nm{font-weight:700;font-size:15px;margin-bottom:8px;}
+  .ppl .p .big{font-size:22px;font-weight:700;color:var(--ok);}
+  .ppl .p .lbl{color:var(--mut);font-size:11px;}
+  .ppl .p .sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;color:var(--mut);font-size:12px;}
+  .ppl .p .sub b{color:var(--txt);font-weight:600;}
+  .ppl .p .pend{margin-top:8px;font-size:12px;color:var(--wait);}
   /* Tabla */
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);}
@@ -72,6 +80,8 @@
   </div>
 
   <div class="card"><h2 style="margin-top:0">💰 Recuperado (liquidado)</h2><div class="tot" id="tot"></div></div>
+
+  <div class="card"><h2 style="margin-top:0">👤 Por persona</h2><div class="ppl" id="ppl"></div></div>
 
   <div class="card">
     <h2 style="margin-top:0">📋 Detalle por mes</h2>
@@ -152,6 +162,25 @@ function render(){
   document.getElementById("tot").innerHTML =
     DATA.seguros.map(s=>`<div class="b"><div class="l">${s.nombre}</div><div class="v">${CLP(tot[s.key])}</div></div>`).join("")
     + `<div class="b grand"><div class="l">TOTAL recuperado</div><div class="v">${CLP(grand)}</div></div>`;
+  // Por persona
+  const ppl = DATA.personas.map(pe=>{
+    const regs = DATA.registros.filter(r=>r.persona===pe);
+    const porSeg = {}; DATA.seguros.forEach(s=>porSeg[s.key]=0); let recu=0, esperando=0, faltan=0;
+    regs.forEach(r=>DATA.seguros.forEach(s=>{
+      const c=r[s.key]; if(!c) return;
+      if(c.estado==="liquidado" && c.monto){ porSeg[s.key]+=c.monto; recu+=c.monto; }
+      else if(c.estado==="ingresado") esperando++;
+      else if(c.estado==="falta"||c.estado==="verificar") faltan++;
+    }));
+    const sub = DATA.seguros.map(s=>`<span><b>${s.nombre}:</b> ${CLP(porSeg[s.key])}</span>`).join("");
+    const pend = (faltan?`✘ ${faltan} por subir`:"") + (faltan&&esperando?" · ":"") + (esperando?`⏳ ${esperando} esperando`:"");
+    return `<div class="p"><div class="nm">${pe}</div>`
+      + `<div class="lbl">Te han pagado</div><div class="big">${CLP(recu)}</div>`
+      + `<div class="sub">${sub}</div>`
+      + (pend?`<div class="pend">${pend}</div>`:`<div class="pend" style="color:var(--ok)">Todo al día ✓</div>`)
+      + `</div>`;
+  }).join("");
+  document.getElementById("ppl").innerHTML = ppl;
   // Pendientes
   const pend = DATA.registros.flatMap(r => DATA.seguros.filter(s=>{
     const e=r[s.key]&&r[s.key].estado; return e==="falta"||e==="verificar";
