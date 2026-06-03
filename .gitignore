@@ -1,0 +1,5 @@
+# NUNCA subir los datos sin cifrar ni la clave
+datos.json
+clave.txt
+.DS_Store
+.claude/

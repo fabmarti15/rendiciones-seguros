@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rendiciones Salud</title>
+<style>
+  :root{ --bg:#0f1115; --card:#1a1d24; --line:#2a2e38; --txt:#e6e8ec; --mut:#9aa0aa;
+         --ok:#3ec46d; --wait:#e0a531; --bad:#e0564a; --na:#5a606b; --accent:#5b8cff; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--txt);}
+  .wrap{max-width:980px;margin:0 auto;padding:18px 14px 60px;}
+  h1{font-size:21px;margin:0 0 2px;} .sub{color:var(--mut);font-size:13px;margin-bottom:18px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;}
+  /* Login */
+  #gate{max-width:360px;margin:14vh auto;text-align:center;}
+  #gate h1{margin-bottom:6px;} #gate p{color:var(--mut);font-size:14px;}
+  input[type=password],input[type=text]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);
+       background:#10131a;color:var(--txt);font-size:15px;}
+  button{cursor:pointer;border:none;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;
+       background:var(--accent);color:#fff;}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);}
+  .err{color:var(--bad);font-size:13px;min-height:18px;margin-top:8px;}
+  /* Totales */
+  .tot{display:flex;flex-wrap:wrap;gap:10px;}
+  .tot .b{flex:1;min-width:140px;background:#10131a;border:1px solid var(--line);border-radius:12px;padding:12px;}
+  .tot .b .l{color:var(--mut);font-size:12px;} .tot .b .v{font-size:20px;font-weight:700;margin-top:3px;}
+  .tot .grand{background:linear-gradient(135deg,#1e2a4a,#16203a);border-color:#2f4a8a;}
+  /* Tabla */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);}
+  th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  td.mes{text-align:left;font-weight:600;white-space:nowrap;}
+  tr.mesrow td{text-align:left;font-weight:700;font-size:13px;background:#10131a;color:var(--accent);
+       padding-top:12px;padding-bottom:6px;letter-spacing:.02em;}
+  td.per{text-align:left;color:var(--txt);}
+  .pill{display:inline-block;min-width:26px;font-size:12px;}
+  .monto{display:block;font-size:11px;color:var(--mut);}
+  .ok{color:var(--ok)} .wait{color:var(--wait)} .bad{color:var(--bad)} .na{color:var(--na)}
+  h2{font-size:15px;margin:18px 0 8px;}
+  .pend li{margin:5px 0;font-size:14px;}
+  .leg{color:var(--mut);font-size:12px;margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;}
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  textarea{width:100%;min-height:340px;font-family:ui-monospace,Menlo,monospace;font-size:12px;
+       background:#10131a;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;}
+  .hidden{display:none}
+  .note{color:var(--wait);font-size:11px;}
+</style>
+</head>
+<body>
+<!-- Pantalla de clave -->
+<div id="gate">
+  <h1>🔐 Rendiciones Salud</h1>
+  <p>Ingresa tu clave para ver el tablero.</p>
+  <div style="margin-top:16px;text-align:left;">
+    <input id="pw" type="password" placeholder="Clave" autofocus>
+    <button style="width:100%;margin-top:10px;" onclick="unlock()">Entrar</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" class="wrap hidden">
+  <div class="bar">
+    <div><h1>Rendiciones Salud</h1><div class="sub" id="upd"></div></div>
+    <div style="display:flex;gap:8px;">
+      <button class="ghost" onclick="toggleEdit()">✏️ Editar</button>
+      <button class="ghost" onclick="location.reload()">🔒 Salir</button>
+    </div>
+  </div>
+
+  <div class="card"><h2 style="margin-top:0">💰 Recuperado (liquidado)</h2><div class="tot" id="tot"></div></div>
+
+  <div class="card pend"><h2 style="margin-top:0">⏳ Por hacer / pendiente</h2><ul id="pend"></ul></div>
+
+  <div class="card">
+    <h2 style="margin-top:0">📋 Detalle por mes</h2>
+    <div style="overflow-x:auto"><table id="tabla"></table></div>
+    <div class="leg">
+      <span><span class="ok">●</span> Liquidado</span>
+      <span><span class="wait">●</span> Ingresado</span>
+      <span><span class="bad">●</span> Falta</span>
+      <span><span class="na">●</span> N/A</span>
+    </div>
+  </div>
+
+  <!-- Editor -->
+  <div class="card hidden" id="editor">
+    <h2 style="margin-top:0">✏️ Editar datos</h2>
+    <p class="sub">Edita el JSON y descarga el <b>index.html</b> actualizado (queda cifrado con tu misma clave). Luego súbelo a GitHub.</p>
+    <textarea id="json"></textarea>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="applyEdit()">Aplicar (previsualizar)</button>
+      <button class="ghost" onclick="downloadHtml()">⬇️ Descargar index.html cifrado</button>
+    </div>
+    <div class="err" id="ederr"></div>
+  </div>
+</div>
+
+<script>
+const PAYLOAD = "__PAYLOAD__";
+let KEY = null, DATA = null;
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const b64e = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+const CLP = n => "$" + (n||0).toLocaleString("es-CL");
+const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const mesLabel = m => { const [y,mm] = m.split("-"); return (MESES[+mm-1]||mm) + " " + y; };
+
+async function deriveKey(pw, salt, iter){
+  const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:iter, hash:"SHA-256"},
+    base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function unlock(){
+  const pw = document.getElementById("pw").value;
+  try{
+    KEY = await deriveKey(pw, b64d(PAYLOAD.salt), PAYLOAD.iter);
+    const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64d(PAYLOAD.iv)}, KEY, b64d(PAYLOAD.data));
+    DATA = JSON.parse(dec.decode(plain));
+    document.getElementById("gate").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    render();
+  }catch(e){ document.getElementById("err").textContent = "Clave incorrecta."; }
+}
+document.getElementById("pw").addEventListener("keydown", e => { if(e.key==="Enter") unlock(); });
+
+const EST = { liquidado:["ok","✔"], ingresado:["wait","⏳"], falta:["bad","✘"],
+              verificar:["wait","⚠"], novino:["na","—"], na:["na","—"] };
+function cell(c){
+  if(!c) return '<span class="na">—</span>';
+  const [cls,ic] = EST[c.estado] || ["na","—"];
+  let h = `<span class="pill ${cls}">${ic}</span>`;
+  if(c.monto!=null && c.estado==="liquidado") h += `<span class="monto">${CLP(c.monto)}</span>`;
+  return h;
+}
+function render(){
+  document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
+  // Totales por seguro (solo liquidado)
+  const tot = {}; DATA.seguros.forEach(s=>tot[s.key]=0); let grand=0;
+  DATA.registros.forEach(r => DATA.seguros.forEach(s=>{
+    const c=r[s.key]; if(c && c.estado==="liquidado" && c.monto){ tot[s.key]+=c.monto; grand+=c.monto; }
+  }));
+  document.getElementById("tot").innerHTML =
+    DATA.seguros.map(s=>`<div class="b"><div class="l">${s.nombre}</div><div class="v">${CLP(tot[s.key])}</div></div>`).join("")
+    + `<div class="b grand"><div class="l">TOTAL recuperado</div><div class="v">${CLP(grand)}</div></div>`;
+  // Pendientes
+  const pend = DATA.registros.flatMap(r => DATA.seguros.filter(s=>{
+    const e=r[s.key]&&r[s.key].estado; return e==="falta"||e==="verificar";
+  }).map(s=>{ const c=r[s.key]; const ic=c.estado==="falta"?"✘":"⚠";
+    return `<li><b>${r.persona}</b> · ${r.mes} · ${r.concepto} → <b>${s.nombre}</b> <span class="${c.estado==="falta"?"bad":"wait"}">${ic}</span>${c.nota?` <span class="note">(${c.nota})</span>`:""}</li>`;
+  }));
+  document.getElementById("pend").innerHTML = pend.length ? pend.join("") : "<li>Todo al día 🎉</li>";
+  // Tabla agrupada por mes (una fila por persona; columnas = seguros)
+  const NCOL = DATA.seguros.length + 1;
+  const head = `<tr><th style="text-align:left">Persona</th>${DATA.seguros.map(s=>`<th>${s.nombre}</th>`).join("")}</tr>`;
+  const meses = [...new Set(DATA.registros.map(r=>r.mes))].sort((a,b)=>b.localeCompare(a));
+  const orden = p => { const i = DATA.personas.indexOf(p); return i<0 ? 99 : i; };
+  let body = "";
+  meses.forEach(m=>{
+    body += `<tr class="mesrow"><td colspan="${NCOL}">${mesLabel(m)}</td></tr>`;
+    DATA.registros.filter(r=>r.mes===m)
+      .sort((a,b)=> orden(a.persona)-orden(b.persona) || a.concepto.localeCompare(b.concepto))
+      .forEach(r=>{
+        const extra = r.concepto && r.concepto!=="Psicoterapia" ? ` <span class="note">· ${r.concepto}</span>` : "";
+        body += `<tr><td class="per">${r.persona}${extra}</td>${DATA.seguros.map(s=>`<td>${cell(r[s.key])}</td>`).join("")}</tr>`;
+      });
+  });
+  document.getElementById("tabla").innerHTML = head + body;
+}
+// Editor
+function toggleEdit(){
+  const ed=document.getElementById("editor");
+  ed.classList.toggle("hidden");
+  if(!ed.classList.contains("hidden")) document.getElementById("json").value = JSON.stringify(DATA,null,2);
+}
+function applyEdit(){
+  try{ DATA = JSON.parse(document.getElementById("json").value); document.getElementById("ederr").textContent=""; render(); }
+  catch(e){ document.getElementById("ederr").textContent = "JSON inválido: " + e.message; }
+}
+async function downloadHtml(){
+  try{
+    const plain = JSON.parse(document.getElementById("json").value);
+    const json = JSON.stringify(plain);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveKey(document.getElementById("pw").value, salt, PAYLOAD.iter);
+    const ctTag = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, enc.encode(json));
+    const newPayload = { salt:b64e(salt), iv:b64e(iv), iter:PAYLOAD.iter, data:b64e(ctTag) };
+    const html = document.documentElement.outerHTML.replace(/const PAYLOAD = .*?;/s, 'const PAYLOAD = '+JSON.stringify(newPayload)+';');
+    const blob = new Blob(["<!DOCTYPE html>\n"+html], {type:"text/html"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "index.html"; a.click();
+  }catch(e){ document.getElementById("ederr").textContent = "Error: " + e.message; }
+}
+</script>
+</body>
+</html>

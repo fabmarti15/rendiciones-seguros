@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rendiciones Salud</title>
+<style>
+  :root{ --bg:#0f1115; --card:#1a1d24; --line:#2a2e38; --txt:#e6e8ec; --mut:#9aa0aa;
+         --ok:#3ec46d; --wait:#e0a531; --bad:#e0564a; --na:#5a606b; --accent:#5b8cff; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--txt);}
+  .wrap{max-width:980px;margin:0 auto;padding:18px 14px 60px;}
+  h1{font-size:21px;margin:0 0 2px;} .sub{color:var(--mut);font-size:13px;margin-bottom:18px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;}
+  /* Login */
+  #gate{max-width:360px;margin:14vh auto;text-align:center;}
+  #gate h1{margin-bottom:6px;} #gate p{color:var(--mut);font-size:14px;}
+  input[type=password],input[type=text]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);
+       background:#10131a;color:var(--txt);font-size:15px;}
+  button{cursor:pointer;border:none;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;
+       background:var(--accent);color:#fff;}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);}
+  .err{color:var(--bad);font-size:13px;min-height:18px;margin-top:8px;}
+  /* Totales */
+  .tot{display:flex;flex-wrap:wrap;gap:10px;}
+  .tot .b{flex:1;min-width:140px;background:#10131a;border:1px solid var(--line);border-radius:12px;padding:12px;}
+  .tot .b .l{color:var(--mut);font-size:12px;} .tot .b .v{font-size:20px;font-weight:700;margin-top:3px;}
+  .tot .grand{background:linear-gradient(135deg,#1e2a4a,#16203a);border-color:#2f4a8a;}
+  /* Tabla */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);}
+  th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
+  td.mes{text-align:left;font-weight:600;white-space:nowrap;}
+  tr.mesrow td{text-align:left;font-weight:700;font-size:13px;background:#10131a;color:var(--accent);
+       padding-top:12px;padding-bottom:6px;letter-spacing:.02em;}
+  td.per{text-align:left;color:var(--txt);}
+  .pill{display:inline-block;min-width:26px;font-size:12px;}
+  .monto{display:block;font-size:11px;color:var(--mut);}
+  .ok{color:var(--ok)} .wait{color:var(--wait)} .bad{color:var(--bad)} .na{color:var(--na)}
+  h2{font-size:15px;margin:18px 0 8px;}
+  .pend li{margin:5px 0;font-size:14px;}
+  .leg{color:var(--mut);font-size:12px;margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;}
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  textarea{width:100%;min-height:340px;font-family:ui-monospace,Menlo,monospace;font-size:12px;
+       background:#10131a;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;}
+  .hidden{display:none}
+  .note{color:var(--wait);font-size:11px;}
+</style>
+</head>
+<body>
+<!-- Pantalla de clave -->
+<div id="gate">
+  <h1>🔐 Rendiciones Salud</h1>
+  <p>Ingresa tu clave para ver el tablero.</p>
+  <div style="margin-top:16px;text-align:left;">
+    <input id="pw" type="password" placeholder="Clave" autofocus>
+    <button style="width:100%;margin-top:10px;" onclick="unlock()">Entrar</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" class="wrap hidden">
+  <div class="bar">
+    <div><h1>Rendiciones Salud</h1><div class="sub" id="upd"></div></div>
+    <div style="display:flex;gap:8px;">
+      <button class="ghost" onclick="toggleEdit()">✏️ Editar</button>
+      <button class="ghost" onclick="location.reload()">🔒 Salir</button>
+    </div>
+  </div>
+
+  <div class="card"><h2 style="margin-top:0">💰 Recuperado (liquidado)</h2><div class="tot" id="tot"></div></div>
+
+  <div class="card pend"><h2 style="margin-top:0">⏳ Por hacer / pendiente</h2><ul id="pend"></ul></div>
+
+  <div class="card">
+    <h2 style="margin-top:0">📋 Detalle por mes</h2>
+    <div style="overflow-x:auto"><table id="tabla"></table></div>
+    <div class="leg">
+      <span><span class="ok">●</span> Liquidado</span>
+      <span><span class="wait">●</span> Ingresado</span>
+      <span><span class="bad">●</span> Falta</span>
+      <span><span class="na">●</span> N/A</span>
+    </div>
+  </div>
+
+  <!-- Editor -->
+  <div class="card hidden" id="editor">
+    <h2 style="margin-top:0">✏️ Editar datos</h2>
+    <p class="sub">Edita el JSON y descarga el <b>index.html</b> actualizado (queda cifrado con tu misma clave). Luego súbelo a GitHub.</p>
+    <textarea id="json"></textarea>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="applyEdit()">Aplicar (previsualizar)</button>
+      <button class="ghost" onclick="downloadHtml()">⬇️ Descargar index.html cifrado</button>
+    </div>
+    <div class="err" id="ederr"></div>
+  </div>
+</div>
+
+<script>
+const PAYLOAD = {"salt":"hJ/chcwG9CzU8iCjB+q96A==","iv":"mSsIzJsaXaRm7iNe","iter":200000,"data":"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"};
+let KEY = null, DATA = null;
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+const b64e = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+const CLP = n => "$" + (n||0).toLocaleString("es-CL");
+const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const mesLabel = m => { const [y,mm] = m.split("-"); return (MESES[+mm-1]||mm) + " " + y; };
+
+async function deriveKey(pw, salt, iter){
+  const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:iter, hash:"SHA-256"},
+    base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+async function unlock(){
+  const pw = document.getElementById("pw").value;
+  try{
+    KEY = await deriveKey(pw, b64d(PAYLOAD.salt), PAYLOAD.iter);
+    const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64d(PAYLOAD.iv)}, KEY, b64d(PAYLOAD.data));
+    DATA = JSON.parse(dec.decode(plain));
+    document.getElementById("gate").classList.add("hidden");
+    document.getElementById("app").classList.remove("hidden");
+    render();
+  }catch(e){ document.getElementById("err").textContent = "Clave incorrecta."; }
+}
+document.getElementById("pw").addEventListener("keydown", e => { if(e.key==="Enter") unlock(); });
+
+const EST = { liquidado:["ok","✔"], ingresado:["wait","⏳"], falta:["bad","✘"],
+              verificar:["wait","⚠"], novino:["na","—"], na:["na","—"] };
+function cell(c){
+  if(!c) return '<span class="na">—</span>';
+  const [cls,ic] = EST[c.estado] || ["na","—"];
+  let h = `<span class="pill ${cls}">${ic}</span>`;
+  if(c.monto!=null && c.estado==="liquidado") h += `<span class="monto">${CLP(c.monto)}</span>`;
+  return h;
+}
+function render(){
+  document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
+  // Totales por seguro (solo liquidado)
+  const tot = {}; DATA.seguros.forEach(s=>tot[s.key]=0); let grand=0;
+  DATA.registros.forEach(r => DATA.seguros.forEach(s=>{
+    const c=r[s.key]; if(c && c.estado==="liquidado" && c.monto){ tot[s.key]+=c.monto; grand+=c.monto; }
+  }));
+  document.getElementById("tot").innerHTML =
+    DATA.seguros.map(s=>`<div class="b"><div class="l">${s.nombre}</div><div class="v">${CLP(tot[s.key])}</div></div>`).join("")
+    + `<div class="b grand"><div class="l">TOTAL recuperado</div><div class="v">${CLP(grand)}</div></div>`;
+  // Pendientes
+  const pend = DATA.registros.flatMap(r => DATA.seguros.filter(s=>{
+    const e=r[s.key]&&r[s.key].estado; return e==="falta"||e==="verificar";
+  }).map(s=>{ const c=r[s.key]; const ic=c.estado==="falta"?"✘":"⚠";
+    return `<li><b>${r.persona}</b> · ${r.mes} · ${r.concepto} → <b>${s.nombre}</b> <span class="${c.estado==="falta"?"bad":"wait"}">${ic}</span>${c.nota?` <span class="note">(${c.nota})</span>`:""}</li>`;
+  }));
+  document.getElementById("pend").innerHTML = pend.length ? pend.join("") : "<li>Todo al día 🎉</li>";
+  // Tabla agrupada por mes (una fila por persona; columnas = seguros)
+  const NCOL = DATA.seguros.length + 1;
+  const head = `<tr><th style="text-align:left">Persona</th>${DATA.seguros.map(s=>`<th>${s.nombre}</th>`).join("")}</tr>`;
+  const meses = [...new Set(DATA.registros.map(r=>r.mes))].sort((a,b)=>b.localeCompare(a));
+  const orden = p => { const i = DATA.personas.indexOf(p); return i<0 ? 99 : i; };
+  let body = "";
+  meses.forEach(m=>{
+    body += `<tr class="mesrow"><td colspan="${NCOL}">${mesLabel(m)}</td></tr>`;
+    DATA.registros.filter(r=>r.mes===m)
+      .sort((a,b)=> orden(a.persona)-orden(b.persona) || a.concepto.localeCompare(b.concepto))
+      .forEach(r=>{
+        const extra = r.concepto && r.concepto!=="Psicoterapia" ? ` <span class="note">· ${r.concepto}</span>` : "";
+        body += `<tr><td class="per">${r.persona}${extra}</td>${DATA.seguros.map(s=>`<td>${cell(r[s.key])}</td>`).join("")}</tr>`;
+      });
+  });
+  document.getElementById("tabla").innerHTML = head + body;
+}
+// Editor
+function toggleEdit(){
+  const ed=document.getElementById("editor");
+  ed.classList.toggle("hidden");
+  if(!ed.classList.contains("hidden")) document.getElementById("json").value = JSON.stringify(DATA,null,2);
+}
+function applyEdit(){
+  try{ DATA = JSON.parse(document.getElementById("json").value); document.getElementById("ederr").textContent=""; render(); }
+  catch(e){ document.getElementById("ederr").textContent = "JSON inválido: " + e.message; }
+}
+async function downloadHtml(){
+  try{
+    const plain = JSON.parse(document.getElementById("json").value);
+    const json = JSON.stringify(plain);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveKey(document.getElementById("pw").value, salt, PAYLOAD.iter);
+    const ctTag = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, enc.encode(json));
+    const newPayload = { salt:b64e(salt), iv:b64e(iv), iter:PAYLOAD.iter, data:b64e(ctTag) };
+    const html = document.documentElement.outerHTML.replace(/const PAYLOAD = .*?;/s, 'const PAYLOAD = '+JSON.stringify(newPayload)+';');
+    const blob = new Blob(["<!DOCTYPE html>\n"+html], {type:"text/html"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "index.html"; a.click();
+  }catch(e){ document.getElementById("ederr").textContent = "Error: " + e.message; }
+}
+</script>
+</body>
+</html>
