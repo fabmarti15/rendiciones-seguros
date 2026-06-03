@@ -36,6 +36,7 @@
        padding-top:12px;padding-bottom:6px;letter-spacing:.02em;}
   td.per{text-align:left;color:var(--txt);}
   .pill{display:inline-block;min-width:26px;font-size:12px;}
+  .cellwrap{cursor:help;}
   .monto{display:block;font-size:11px;color:var(--mut);}
   .ok{color:var(--ok)} .wait{color:var(--wait)} .bad{color:var(--bad)} .na{color:var(--na)}
   h2{font-size:15px;margin:18px 0 8px;}
@@ -131,9 +132,15 @@ const EST = { liquidado:["ok","✔"], ingresado:["wait","⏳"], falta:["bad","�
 function cell(c){
   if(!c) return '<span class="na">—</span>';
   const [cls,ic] = EST[c.estado] || ["na","—"];
-  let h = `<span class="pill ${cls}">${ic}</span>`;
-  if(c.monto!=null && c.estado==="liquidado") h += `<span class="monto">${CLP(c.monto)}</span>`;
-  return h;
+  const det = ["Estado: " + ((DATA.leyenda && DATA.leyenda[c.estado]) || c.estado)];
+  if(c.monto!=null) det.push("Monto: " + CLP(c.monto));
+  if(c.solicitud) det.push("N° solicitud: " + c.solicitud);
+  if(c.folio) det.push("Folio: " + c.folio);
+  if(c.nota) det.push("Nota: " + c.nota);
+  const tip = det.join("&#10;").replace(/"/g, "&quot;");
+  let inner = `<span class="pill ${cls}">${ic}</span>`;
+  if(c.monto!=null && c.estado==="liquidado") inner += `<span class="monto">${CLP(c.monto)}</span>`;
+  return `<span class="cellwrap" title="${tip}">${inner}</span>`;
 }
 function render(){
   document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
