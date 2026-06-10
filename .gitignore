@@ -1,5 +1,7 @@
 # NUNCA subir los datos sin cifrar ni la clave
 datos.json
 clave.txt
+Boletas/
+Informes Psicoterapia/
 .DS_Store
 .claude/

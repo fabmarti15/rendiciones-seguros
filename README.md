@@ -14,13 +14,13 @@ Tablero privado para llevar las rendiciones mensuales de salud (Isapre Más Vida
 2. Botón **✏️ Editar** → edita el JSON → **⬇️ Descargar index.html cifrado**.
 3. Sube ese `index.html` a GitHub (reemplaza el anterior).
 
-**B) Desde la terminal:**
+**B) Desde la terminal (recomendado, sin gastar tokens):**
 ```bash
 cd "Rendiciones Salud"
-# edita datos.json
-node build.js "TU_CLAVE"
-git add index.html && git commit -m "actualiza rendiciones" && git push
+# edita datos.json con cualquier editor
+./publicar.sh "TU_CLAVE" "mensaje opcional"
 ```
+`publicar.sh` cifra, regenera `index.html` y hace commit+push solo.
 
 ## Cambiar la clave
 `node build.js "NUEVA_CLAVE"` y vuelve a subir `index.html`.
