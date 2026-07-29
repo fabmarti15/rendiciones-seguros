@@ -29,6 +29,9 @@
         border-radius:20px;padding:5px 13px;font-size:12px;font-weight:500;}
   .chip:hover{color:var(--txt);border-color:var(--txt);}
   .chip.on{background:var(--txt);border-color:var(--txt);color:#fff;}
+  .rango.solo{margin-top:12px;padding-top:12px;border-top:1px solid var(--line2);}
+  .solol{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.06em;}
+  .chip.sm{padding:4px 10px;font-size:11px;}
   .desde{color:var(--mut);font-size:12px;}
   .desde select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;
         background:#fff;color:var(--txt);font-size:12px;margin-left:4px;}
@@ -106,6 +109,10 @@
     <div class="rango">
       <div class="chips" id="chips"></div>
       <label class="desde">Desde <select id="desde" onchange="setDesde(this.value)"></select></label>
+    </div>
+    <div class="rango solo">
+      <span class="solol">Solo un mes</span>
+      <div class="chips" id="chips-mes"></div>
     </div>
   </div>
 
@@ -205,18 +212,22 @@ function bindTips(){ document.querySelectorAll(".cellwrap").forEach(el=>{
   el.addEventListener("mouseleave", hideTip);
   el.addEventListener("click", e=>{ if(tipEl.classList.contains("hidden")) showTip(e); else hideTip(); });
 }); }
-let DESDE = "2026-01";
+let DESDE = "2026-01", HASTA = null;
 function mesesDisponibles(){ return [...new Set(DATA.registros.map(r=>r.mes))].sort(); }
-function setDesde(v){ DESDE = v; render(); }
+function maxMes(){ const ms = mesesDisponibles(); return ms[ms.length-1]; }
+function setDesde(v){ DESDE = v; HASTA = null; render(); }
+function setSolo(m){ DESDE = m; HASTA = m; render(); }
 function renderRango(){
-  const ms = mesesDisponibles(), min = ms[0], max = ms[ms.length-1];
+  const ms = mesesDisponibles(), min = ms[0], max = maxMes();
   const restar = n => { let [y,m]=max.split("-").map(Number); m-=n; while(m<1){m+=12;y--;} return y+"-"+String(m).padStart(2,"0"); };
-  const opciones = [["Todo",min],["Año 2026","2026-01"],["Desde Mar 2026","2026-03"],["Últimos 6 meses",restar(5)],["Solo "+mesLabel(max),max]]
+  const opciones = [["Todo",min],["Año 2026","2026-01"],["Desde Mar 2026","2026-03"],["Últimos 6 meses",restar(5)]]
     .filter(([t,v],i,a)=> v>=min && v<=max && a.findIndex(o=>o[1]===v)===i);
   document.getElementById("chips").innerHTML = opciones.map(([t,v])=>
-    `<button class="chip${v===DESDE?" on":""}" onclick="setDesde('${v}')">${t}</button>`).join("");
+    `<button class="chip${(!HASTA && v===DESDE)?" on":""}" onclick="setDesde('${v}')">${t}</button>`).join("");
   document.getElementById("desde").innerHTML = ms.map(m=>
-    `<option value="${m}"${m===DESDE?" selected":""}>${mesLabel(m)}</option>`).join("");
+    `<option value="${m}"${(!HASTA && m===DESDE)?" selected":""}>${mesLabel(m)}</option>`).join("");
+  document.getElementById("chips-mes").innerHTML = ms.slice().reverse().map(m=>
+    `<button class="chip sm${(HASTA===m&&DESDE===m)?" on":""}" onclick="setSolo('${m}')">${mesLabel(m)}</button>`).join("");
 }
 // ---------- Resumen (tarjetas) ----------
 function pintarResumen(id, LISTA){
@@ -440,7 +451,7 @@ function pintarPendientes(LISTA){
 const esPsico = r => (r.concepto||"").toLowerCase().includes("psicoterapia");
 function render(){
   renderRango();
-  const REGS = DATA.registros.filter(r=>r.mes>=DESDE);
+  const REGS = DATA.registros.filter(r=> r.mes>=DESDE && (!HASTA || r.mes<=HASTA));
   document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
   const psico = REGS.filter(esPsico), otros = REGS.filter(r=>!esPsico(r));
   pintarResumen("tot-psico", psico);
