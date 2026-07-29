@@ -67,6 +67,8 @@
   .info:hover{color:var(--txt);border-color:var(--txt);}
   .pend{list-style:none;padding:0;margin:0;}
   .pend li{padding:7px 0;font-size:13px;border-bottom:1px solid var(--line2);}
+  .otros{margin-top:38px;}
+  #tabla-otros{min-width:820px;}
   .leg{color:var(--mut);font-size:12px;margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;}
   .note{color:var(--mut);font-size:11px;}
   textarea{width:100%;min-height:320px;font-family:ui-monospace,Menlo,monospace;font-size:12px;
@@ -109,8 +111,12 @@
   </div>
 
   <div class="card">
-    <h2>Detalle por mes</h2>
+    <h2>Psicoterapia · detalle por mes</h2>
     <div style="overflow-x:auto"><table id="tabla"></table></div>
+    <div id="tabla-otros-wrap" class="otros">
+      <h2>Otras atenciones</h2>
+      <div style="overflow-x:auto"><table id="tabla-otros"></table></div>
+    </div>
     <div class="leg">
       <span><span class="ok">✓</span> Liquidado</span>
       <span><span class="wait">○</span> En trámite</span>
@@ -306,12 +312,13 @@ function render(){
         ["Qué es:","La plata que quedó de tu bolsillo ese mes."],
         ["Fórmula:","Total boleta − Total cobertura."],
         ["Puede bajar:","Si hay solicitudes en curso, al liquidarse este número baja."]])}</th></tr>`;
-  const meses = [...new Set(REGS.map(r=>r.mes))].sort((a,b)=>b.localeCompare(a));
   const orden = p => { const i = DATA.personas.indexOf(p); return i<0 ? 99 : i; };
   const miss = '<span class="missing">—</span>';
+  const cuerpo = (LISTA) => {
+  const meses = [...new Set(LISTA.map(r=>r.mes))].sort((a,b)=>b.localeCompare(a));
   let body = "";
   meses.forEach(m=>{
-    const regsM = REGS.filter(r=>r.mes===m)
+    const regsM = LISTA.filter(r=>r.mes===m)
       .sort((a,b)=> orden(a.persona)-orden(b.persona) || a.concepto.localeCompare(b.concepto));
     const pagM = regsM.reduce((n,r)=>n+regPagado(r),0);
     const docM = regsM.reduce((n,r)=>n+(regDoc(r)||0),0);
@@ -357,7 +364,14 @@ function render(){
         + `<td class="money paid">${tipPag}</td><td class="money cost${doc!=null&&doc-pag<0?" neg":""}">${tipCos}</td></tr>`;
     });
   });
-  document.getElementById("tabla").innerHTML = head + body;
+  return body;
+  };
+  const esPsico = r => (r.concepto||"").toLowerCase().includes("psicoterapia");
+  const psico = REGS.filter(esPsico), otros = REGS.filter(r=>!esPsico(r));
+  document.getElementById("tabla").innerHTML = head + (psico.length ? cuerpo(psico)
+    : `<tr><td colspan="7" class="missing">Sin registros de psicoterapia en este período.</td></tr>`);
+  document.getElementById("tabla-otros-wrap").style.display = otros.length ? "" : "none";
+  if(otros.length) document.getElementById("tabla-otros").innerHTML = head + cuerpo(otros);
   bindTips();
 }
 // Editor
