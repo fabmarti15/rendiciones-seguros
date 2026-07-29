@@ -5,72 +5,69 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rendiciones Salud</title>
 <style>
-  :root{ --bg:#0f1115; --card:#1a1d24; --line:#2a2e38; --txt:#e6e8ec; --mut:#9aa0aa;
-         --ok:#3ec46d; --wait:#e0a531; --bad:#e0564a; --na:#5a606b; --accent:#5b8cff; }
+  :root{ --bg:#ffffff; --line:#e9e9e9; --line2:#f3f3f3; --txt:#141414; --mut:#8b8b8b;
+         --ok:#1d7a45; --wait:#a4700a; --bad:#c0392b; --na:#c9c9c9; --accent:#141414; }
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       background:var(--bg);color:var(--txt);}
-  .wrap{max-width:980px;margin:0 auto;padding:18px 14px 60px;}
-  h1{font-size:21px;margin:0 0 2px;} .sub{color:var(--mut);font-size:13px;margin-bottom:18px;}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;}
-  /* Login */
-  #gate{max-width:360px;margin:14vh auto;text-align:center;}
-  #gate h1{margin-bottom:6px;} #gate p{color:var(--mut);font-size:14px;}
-  input[type=password],input[type=text]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);
-       background:#10131a;color:var(--txt);font-size:15px;}
-  button{cursor:pointer;border:none;border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;
-       background:var(--accent);color:#fff;}
-  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);}
+  body{margin:0;background:var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 24px 80px;}
+  h1{font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em;}
+  h2{font-size:12px;font-weight:600;margin:0 0 14px;color:var(--mut);
+     text-transform:uppercase;letter-spacing:.07em;}
+  .sub{color:var(--mut);font-size:13px;margin-top:2px;}
+  .bar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:40px;}
+  .card{margin-bottom:44px;}
+  button{cursor:pointer;border:1px solid var(--line);background:none;color:var(--mut);
+         border-radius:6px;padding:6px 12px;font-size:12px;font-weight:500;}
+  button:hover{color:var(--txt);border-color:var(--txt);}
+  input[type=password],input[type=text]{width:100%;padding:10px;border-radius:6px;
+       border:1px solid var(--line);background:#fff;color:var(--txt);font-size:14px;}
   .err{color:var(--bad);font-size:13px;min-height:18px;margin-top:8px;}
   /* Totales */
-  .tot{display:flex;flex-wrap:wrap;gap:10px;}
-  .tot .b{flex:1;min-width:140px;background:#10131a;border:1px solid var(--line);border-radius:12px;padding:12px;}
-  .tot .b .l{color:var(--mut);font-size:12px;} .tot .b .v{font-size:20px;font-weight:700;margin-top:3px;}
-  .tot .grand{background:linear-gradient(135deg,#1e2a4a,#16203a);border-color:#2f4a8a;}
-  .ppl{overflow-x:auto;}
-  .ppl table{min-width:760px;}
-  .ppl td:first-child,.ppl th:first-child{text-align:left;}
-  .ppl td.money{white-space:nowrap;}
-  .ppl td.paid{color:var(--ok);font-weight:700;}
-  .ppl td.cost{color:var(--wait);font-weight:700;}
-  .ppl tfoot td{border-top:2px solid var(--line);border-bottom:0;font-weight:700;background:#10131a;}
-  .ppl .missing{color:var(--mut);font-weight:400;}
-  /* Tabla */
+  .tot{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .tot .b{flex:1;min-width:130px;padding:16px 18px;border-right:1px solid var(--line);}
+  .tot .b:last-child{border-right:0;}
+  .tot .b .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.06em;}
+  .tot .b .v{font-size:21px;font-weight:600;margin-top:4px;letter-spacing:-.02em;}
+  .tot .grand .v{color:var(--ok);}
+  /* Tablas */
   table{width:100%;border-collapse:collapse;font-size:13px;}
-  th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);}
-  th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;}
-  td.mes{text-align:left;font-weight:600;white-space:nowrap;}
-  tr.mesrow td{text-align:center;font-weight:700;font-size:13px;background:#10131a;color:var(--accent);
-       padding-top:12px;padding-bottom:6px;letter-spacing:.02em;white-space:nowrap;}
-  tr.mesrow td:first-child{text-align:left;}
+  th,td{padding:9px 8px;text-align:right;border-bottom:1px solid var(--line2);}
+  th{color:var(--mut);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.06em;
+     border-bottom:1px solid var(--line);padding-bottom:8px;}
+  td{font-variant-numeric:tabular-nums;}
+  td:first-child,th:first-child{text-align:left;}
+  .ppl{overflow-x:auto;} .ppl table{min-width:720px;}
+  .ppl tfoot td{border-top:1px solid var(--line);border-bottom:0;font-weight:600;}
+  .missing{color:var(--na);font-weight:400;}
   #tabla{min-width:820px;}
-  #tabla td.money{white-space:nowrap;}
-  #tabla td.doc{color:var(--txt);}
-  #tabla td.paid{color:var(--ok);}
-  #tabla td.cost{color:var(--wait);font-weight:600;}
-  td.per{text-align:left;color:var(--txt);}
-  .pill{display:inline-block;min-width:26px;font-size:12px;}
-  .cellwrap{cursor:help;}
-  .info{display:inline-block;width:14px;height:14px;line-height:13px;border-radius:50%;
-       border:1px solid var(--line);color:var(--mut);font-size:10px;font-weight:700;
-       text-align:center;margin-left:5px;vertical-align:middle;font-style:italic;font-family:Georgia,serif;}
-  .info:hover{color:var(--accent);border-color:var(--accent);}
+  td.per{text-align:left;}
+  td.paid{color:var(--txt);}
+  td.cost{font-weight:600;}
   td.cost.neg{color:var(--bad);}
-  .monto{display:block;font-size:11px;color:var(--mut);}
+  tr.mesrow td{font-weight:600;font-size:12px;color:var(--txt);background:var(--line2);
+       border-bottom:1px solid var(--line);white-space:nowrap;letter-spacing:.01em;}
+  .pill{display:inline-block;font-size:12px;}
+  .monto{display:block;font-size:11px;color:var(--mut);margin-top:1px;}
   .ok{color:var(--ok)} .wait{color:var(--wait)} .bad{color:var(--bad)} .na{color:var(--na)}
-  h2{font-size:15px;margin:18px 0 8px;}
-  .pend li{margin:5px 0;font-size:14px;}
-  .leg{color:var(--mut);font-size:12px;margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;}
-  .bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
-  textarea{width:100%;min-height:340px;font-family:ui-monospace,Menlo,monospace;font-size:12px;
-       background:#10131a;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;}
+  .cellwrap{cursor:help;}
+  .info{display:inline-block;width:13px;height:13px;line-height:12px;border-radius:50%;
+       border:1px solid var(--na);color:var(--na);font-size:9px;font-weight:700;text-align:center;
+       margin-left:5px;vertical-align:middle;font-style:italic;font-family:Georgia,serif;}
+  .info:hover{color:var(--txt);border-color:var(--txt);}
+  .pend{list-style:none;padding:0;margin:0;}
+  .pend li{padding:7px 0;font-size:13px;border-bottom:1px solid var(--line2);}
+  .leg{color:var(--mut);font-size:12px;margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;}
+  .note{color:var(--mut);font-size:11px;}
+  textarea{width:100%;min-height:320px;font-family:ui-monospace,Menlo,monospace;font-size:12px;
+       background:#fafafa;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:12px;}
   .hidden{display:none}
-  .note{color:var(--wait);font-size:11px;}
-  /* Tooltip hover */
-  .tip{position:fixed;z-index:50;max-width:300px;background:#0b0d12;border:1px solid var(--line);
-       border-radius:12px;padding:11px 13px;font-size:12px;line-height:1.55;color:var(--txt);
-       box-shadow:0 10px 30px rgba(0,0,0,.55);pointer-events:none;}
-  .tip .h{font-weight:700;color:var(--accent);margin-bottom:7px;font-size:12px;}
+  /* Tooltip */
+  .tip{position:fixed;z-index:50;max-width:320px;background:#fff;border:1px solid var(--line);
+       border-radius:8px;padding:12px 14px;font-size:12px;line-height:1.55;color:var(--txt);
+       box-shadow:0 4px 24px rgba(0,0,0,.13);pointer-events:none;text-align:left;}
+  .tip .h{font-weight:600;margin-bottom:8px;font-size:12px;
+       padding-bottom:7px;border-bottom:1px solid var(--line2);}
   .tip .r{margin:3px 0;} .tip .r .k{color:var(--mut);}
 </style>
 </head>
@@ -80,40 +77,40 @@
   <div class="bar">
     <div><h1>Rendiciones Salud</h1><div class="sub" id="upd"></div></div>
     <div style="display:flex;gap:8px;">
-      <button class="ghost" onclick="toggleEdit()">✏️ Editar</button>
-      <button class="ghost" onclick="location.reload()">↻ Recargar</button>
+      <button class="ghost" onclick="toggleEdit()">Editar</button>
+      <button class="ghost" onclick="location.reload()">Recargar</button>
     </div>
   </div>
 
-  <div class="card"><h2 style="margin-top:0">💰 Recuperado (liquidado)</h2><div class="tot" id="tot"></div></div>
+  <div class="card"><h2>Recuperado</h2><div class="tot" id="tot"></div></div>
 
   <div class="card">
-    <h2 style="margin-top:0">👤 Por persona</h2>
+    <h2>Por persona</h2>
     <div class="ppl"><table id="ppl"></table></div>
     <div class="leg">Pasa el cursor por la <b>i</b> o por cualquier monto para ver de dónde sale. El <b>*</b> marca cálculo parcial: faltan boletas por cargar.</div>
   </div>
 
   <div class="card">
-    <h2 style="margin-top:0">📋 Detalle por mes</h2>
+    <h2>Detalle por mes</h2>
     <div style="overflow-x:auto"><table id="tabla"></table></div>
     <div class="leg">
-      <span><span class="ok">●</span> Liquidado</span>
-      <span><span class="wait">●</span> Ingresado</span>
-      <span><span class="bad">●</span> Falta</span>
-      <span><span class="na">●</span> N/A</span>
+      <span><span class="ok">✓</span> Liquidado</span>
+      <span><span class="wait">○</span> En trámite</span>
+      <span><span class="bad">✕</span> Falta rendir</span>
+      <span><span class="na">–</span> No aplica</span>
     </div>
   </div>
 
-  <div class="card pend"><h2 style="margin-top:0">⏳ Por hacer / pendiente</h2><ul id="pend"></ul></div>
+  <div class="card"><h2>Pendiente</h2><ul class="pend" id="pend"></ul></div>
 
   <!-- Editor -->
   <div class="card hidden" id="editor">
-    <h2 style="margin-top:0">✏️ Editar datos</h2>
+    <h2>Editar datos</h2>
     <p class="sub">Edita el JSON y descarga el <b>index.html</b> actualizado. Luego súbelo a GitHub.</p>
     <textarea id="json"></textarea>
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
       <button onclick="applyEdit()">Aplicar (previsualizar)</button>
-      <button class="ghost" onclick="downloadHtml()">⬇️ Descargar index.html</button>
+      <button class="ghost" onclick="downloadHtml()">Descargar index.html</button>
     </div>
     <div class="err" id="ederr"></div>
   </div>
@@ -125,20 +122,19 @@ const CLP = n => "$" + (n||0).toLocaleString("es-CL");
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const mesLabel = m => { const [y,mm] = m.split("-"); return (MESES[+mm-1]||mm) + " " + y; };
 
-const EST = { liquidado:["ok","✔"], ingresado:["wait","⏳"], falta:["bad","✘"],
-              verificar:["wait","⚠"], novino:["na","—"], na:["na","—"] };
+const EST = { liquidado:["ok","✓"], ingresado:["wait","○"], falta:["bad","✕"],
+              verificar:["wait","!"], novino:["na","–"], na:["na","–"] };
 const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-const EMO = { liquidado:"✅", ingresado:"⏳", falta:"❌", verificar:"⚠️", novino:"➖", na:"➖" };
 function cell(c, r, s){
   if(!c) return '<span class="na">—</span>';
   const [cls,ic] = EST[c.estado] || ["na","—"];
   const estTxt = (DATA.leyenda && DATA.leyenda[c.estado]) || c.estado;
   let rows = `<div class="h">${esc(s.nombre)} · ${esc(r.persona)} · ${mesLabel(r.mes)}</div>`;
-  rows += `<div class="r"><span class="k">${EMO[c.estado]||""} Estado:</span> ${esc(estTxt)}</div>`;
-  if(c.monto!=null) rows += `<div class="r"><span class="k">💰 Monto:</span> ${CLP(c.monto)}</div>`;
-  if(c.solicitud) rows += `<div class="r"><span class="k">🧾 Solicitud:</span> ${esc(c.solicitud)}</div>`;
-  if(c.folio) rows += `<div class="r"><span class="k">📄 Folio:</span> ${esc(c.folio)}</div>`;
-  if(c.nota) rows += `<div class="r"><span class="k">📝 Nota:</span> ${esc(c.nota)}</div>`;
+  rows += `<div class="r"><span class="k">Estado:</span> ${esc(estTxt)}</div>`;
+  if(c.monto!=null) rows += `<div class="r"><span class="k">Monto:</span> ${CLP(c.monto)}</div>`;
+  if(c.solicitud) rows += `<div class="r"><span class="k">Solicitud:</span> ${esc(c.solicitud)}</div>`;
+  if(c.folio) rows += `<div class="r"><span class="k">Folio:</span> ${esc(c.folio)}</div>`;
+  if(c.nota) rows += `<div class="r"><span class="k">Nota:</span> ${esc(c.nota)}</div>`;
   const tip = encodeURIComponent(rows);
   let inner = `<span class="pill ${cls}">${ic}</span>`;
   if(c.monto!=null && c.estado==="liquidado") inner += `<span class="monto">${CLP(c.monto)}</span>`;
@@ -254,10 +250,10 @@ function render(){
   // Pendientes
   const pend = DATA.registros.flatMap(r => DATA.seguros.filter(s=>{
     const e=r[s.key]&&r[s.key].estado; return e==="falta"||e==="verificar";
-  }).map(s=>{ const c=r[s.key]; const ic=c.estado==="falta"?"✘":"⚠";
+  }).map(s=>{ const c=r[s.key]; const ic=c.estado==="falta"?"✕":"!";
     return `<li><b>${r.persona}</b> · ${r.mes} · ${r.concepto} → <b>${s.nombre}</b> <span class="${c.estado==="falta"?"bad":"wait"}">${ic}</span>${c.nota?` <span class="note">(${c.nota})</span>`:""}</li>`;
   }));
-  document.getElementById("pend").innerHTML = pend.length ? pend.join("") : "<li>Todo al día 🎉</li>";
+  document.getElementById("pend").innerHTML = pend.length ? pend.join("") : "<li class=\"missing\">Todo al día.</li>";
   // Tabla agrupada por mes (una fila por persona; columnas = seguros)
   const head = `<tr><th style="text-align:left">Persona</th>`
     + `<th>Total boleta${infoIcon("Total boleta",[
@@ -300,7 +296,7 @@ function render(){
             `Boleta · ${r.persona} · ${mesLabel(r.mes)}`, [
             ["Monto:", "<b>"+CLP(doc)+"</b>"],
             r.monto_documento_nota ? ["Detalle:", esc(r.monto_documento_nota)] : null,
-            r.monto_documento_origen==="inferido" ? ["~ Inferido:","no se leyó de la boleta; se dedujo de las liquidaciones. Verificar."] : ["Origen:","confirmado con la boleta."]]);
+            r.monto_documento_origen==="inferido" ? ["Inferido:","no se leyó de la boleta; se dedujo de las liquidaciones. Verificar."] : ["Origen:","confirmado con la boleta."]]);
       const tipPag = wrapTip(CLP(pag), `Total cobertura · ${r.persona} · ${mesLabel(r.mes)}`, [
         ...(detallePagos(r).length ? detallePagos(r) : [["", "Nada liquidado todavía."]]),
         ["Total:", "<b>"+CLP(pag)+"</b>"],
@@ -315,7 +311,7 @@ function render(){
             ...detallePagos(r),
             ["− Cobertura:", CLP(pag)],
             ["= De tu bolsillo:", "<b>"+CLP(doc-pag)+"</b>"],
-            doc-pag<0 ? ["⚠ Negativo:", "recuperaste más de lo que costó la boleta. Suele pasar cuando Sura y Bupa reembolsan sobre el mismo copago. Vale la pena revisarlo."] : null,
+            doc-pag<0 ? ["Negativo:", "recuperaste más de lo que costó la boleta. Suele pasar cuando Sura y Bupa reembolsan sobre el mismo copago. Vale la pena revisarlo."] : null,
             pend.length ? ["Ojo:", "aún hay solicitudes en curso en "+esc(pend.join(", "))+"; puede bajar."] : null]);
       body += `<tr><td class="per">${r.persona}${extra}</td><td class="money doc">${tipDoc}</td>`
         + DATA.seguros.map(s=>`<td>${cell(r[s.key], r, s)}</td>`).join("")
