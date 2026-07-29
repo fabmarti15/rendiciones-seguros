@@ -23,12 +23,22 @@
   input[type=password],input[type=text]{width:100%;padding:10px;border-radius:6px;
        border:1px solid var(--line);background:#fff;color:var(--txt);font-size:14px;}
   .err{color:var(--bad);font-size:13px;min-height:18px;margin-top:8px;}
+  .rango{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;}
+  .chip{cursor:pointer;border:1px solid var(--line);background:none;color:var(--mut);
+        border-radius:20px;padding:5px 13px;font-size:12px;font-weight:500;}
+  .chip:hover{color:var(--txt);border-color:var(--txt);}
+  .chip.on{background:var(--txt);border-color:var(--txt);color:#fff;}
+  .desde{color:var(--mut);font-size:12px;}
+  .desde select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;
+        background:#fff;color:var(--txt);font-size:12px;margin-left:4px;}
   /* Totales */
   .tot{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
   .tot .b{flex:1;min-width:130px;padding:16px 18px;border-right:1px solid var(--line);}
   .tot .b:last-child{border-right:0;}
   .tot .b .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.06em;}
-  .tot .b .v{font-size:21px;font-weight:600;margin-top:4px;letter-spacing:-.02em;}
+  .tot .b .v{font-size:21px;font-weight:600;margin-top:4px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+  .tot .b .l2{color:var(--na);font-size:11px;margin-top:3px;}
   .tot .grand .v{color:var(--ok);}
   /* Tablas */
   table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -82,7 +92,15 @@
     </div>
   </div>
 
-  <div class="card"><h2>Recuperado</h2><div class="tot" id="tot"></div></div>
+  <div class="card">
+    <h2>Período</h2>
+    <div class="rango">
+      <div class="chips" id="chips"></div>
+      <label class="desde">Desde <select id="desde" onchange="setDesde(this.value)"></select></label>
+    </div>
+  </div>
+
+  <div class="card"><h2>Resumen</h2><div class="tot" id="tot"></div></div>
 
   <div class="card">
     <h2>Por persona</h2>
@@ -170,21 +188,42 @@ function bindTips(){ document.querySelectorAll(".cellwrap").forEach(el=>{
   el.addEventListener("mouseleave", hideTip);
   el.addEventListener("click", e=>{ if(tipEl.classList.contains("hidden")) showTip(e); else hideTip(); });
 }); }
+let DESDE = "2026-01";
+function mesesDisponibles(){ return [...new Set(DATA.registros.map(r=>r.mes))].sort(); }
+function setDesde(v){ DESDE = v; render(); }
+function renderRango(){
+  const ms = mesesDisponibles(), min = ms[0], max = ms[ms.length-1];
+  const restar = n => { let [y,m]=max.split("-").map(Number); m-=n; while(m<1){m+=12;y--;} return y+"-"+String(m).padStart(2,"0"); };
+  const opciones = [["Todo",min],["Año 2026","2026-01"],["Desde Mar 2026","2026-03"],["Últimos 6 meses",restar(5)],["Solo "+mesLabel(max),max]]
+    .filter(([t,v],i,a)=> v>=min && v<=max && a.findIndex(o=>o[1]===v)===i);
+  document.getElementById("chips").innerHTML = opciones.map(([t,v])=>
+    `<button class="chip${v===DESDE?" on":""}" onclick="setDesde('${v}')">${t}</button>`).join("");
+  document.getElementById("desde").innerHTML = ms.map(m=>
+    `<option value="${m}"${m===DESDE?" selected":""}>${mesLabel(m)}</option>`).join("");
+}
 function render(){
+  renderRango();
+  const REGS = DATA.registros.filter(r=>r.mes>=DESDE);
   document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
   // Totales por seguro (solo liquidado)
   const tot = {}; DATA.seguros.forEach(s=>tot[s.key]=0); let grand=0;
-  DATA.registros.forEach(r => DATA.seguros.forEach(s=>{
+  REGS.forEach(r => DATA.seguros.forEach(s=>{
     const c=r[s.key]; if(c && c.estado==="liquidado" && c.monto){ tot[s.key]+=c.monto; grand+=c.monto; }
   }));
+  const boletasTot = REGS.reduce((n,r)=>n+(regDoc(r)||0),0);
+  const sinBoleta = REGS.filter(r=>regDoc(r)==null && regActivo(r)).length;
   document.getElementById("tot").innerHTML =
-    DATA.seguros.map(s=>`<div class="b"><div class="l">${s.nombre}</div><div class="v">${CLP(tot[s.key])}</div></div>`).join("")
-    + `<div class="b grand"><div class="l">TOTAL recuperado</div><div class="v">${CLP(grand)}</div></div>`;
+    `<div class="b"><div class="l">Total boletas</div><div class="v">${CLP(boletasTot)}${sinBoleta?'<span class="missing">*</span>':""}</div>`
+    + `<div class="l2">${sinBoleta ? "faltan "+sinBoleta+" por cargar" : "todas cargadas"}</div></div>`
+    + DATA.seguros.map(s=>`<div class="b"><div class="l">${s.nombre}</div><div class="v">${CLP(tot[s.key])}</div>`
+       + `<div class="l2">${boletasTot?Math.round(tot[s.key]/boletasTot*100)+"% de las boletas":"&nbsp;"}</div></div>`).join("")
+    + `<div class="b grand"><div class="l">Total recuperado</div><div class="v">${CLP(grand)}</div>`
+    + `<div class="l2">${boletasTot?Math.round(grand/boletasTot*100)+"% de las boletas":"&nbsp;"}</div></div>`;
   // Por persona: documentos, pagos por seguro y costo final
   // IMPORTANTE: el Costo total se calcula SOLO sobre los meses cuyo monto de boleta se conoce,
   // para no restar reembolsos de meses sin documento cargado (eso daba costos negativos).
   const resumen = DATA.personas.map(pe=>{
-    const regs = DATA.registros.filter(r=>r.persona===pe);
+    const regs = REGS.filter(r=>r.persona===pe);
     const porSeg = {}; DATA.seguros.forEach(s=>porSeg[s.key]=0);
     let documentos=0, totalPagado=0, pagadoConDoc=0, faltan=0, conDoc=[], sinDoc=[];
     regs.forEach(r=>{
@@ -248,7 +287,7 @@ function render(){
     + DATA.seguros.map(s=>`<td class="money">${CLP(totalPorSeg[s.key])}</td>`).join("")
     + `<td class="money paid">${CLP(totalPagado)}</td><td class="money cost${costoNumT<0?" neg":""}">${costoTotal}</td></tr></tfoot>`;
   // Pendientes
-  const pend = DATA.registros.flatMap(r => DATA.seguros.filter(s=>{
+  const pend = REGS.flatMap(r => DATA.seguros.filter(s=>{
     const e=r[s.key]&&r[s.key].estado; return e==="falta"||e==="verificar";
   }).map(s=>{ const c=r[s.key]; const ic=c.estado==="falta"?"✕":"!";
     return `<li><b>${r.persona}</b> · ${r.mes} · ${r.concepto} → <b>${s.nombre}</b> <span class="${c.estado==="falta"?"bad":"wait"}">${ic}</span>${c.nota?` <span class="note">(${c.nota})</span>`:""}</li>`;
@@ -267,12 +306,12 @@ function render(){
         ["Qué es:","La plata que quedó de tu bolsillo ese mes."],
         ["Fórmula:","Total boleta − Total cobertura."],
         ["Puede bajar:","Si hay solicitudes en curso, al liquidarse este número baja."]])}</th></tr>`;
-  const meses = [...new Set(DATA.registros.map(r=>r.mes))].sort((a,b)=>b.localeCompare(a));
+  const meses = [...new Set(REGS.map(r=>r.mes))].sort((a,b)=>b.localeCompare(a));
   const orden = p => { const i = DATA.personas.indexOf(p); return i<0 ? 99 : i; };
   const miss = '<span class="missing">—</span>';
   let body = "";
   meses.forEach(m=>{
-    const regsM = DATA.registros.filter(r=>r.mes===m)
+    const regsM = REGS.filter(r=>r.mes===m)
       .sort((a,b)=> orden(a.persona)-orden(b.persona) || a.concepto.localeCompare(b.concepto));
     const pagM = regsM.reduce((n,r)=>n+regPagado(r),0);
     const docM = regsM.reduce((n,r)=>n+(regDoc(r)||0),0);
