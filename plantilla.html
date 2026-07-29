@@ -39,7 +39,9 @@
   .tot{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
   .tot .b{flex:1;min-width:130px;padding:16px 18px;border-right:1px solid var(--line);}
   .tot .b:last-child{border-right:0;}
+  .tot .b{cursor:help;}
   .tot .b .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.06em;}
+  .tot .b:hover{background:#fafafa;}
   .tot .b .v{font-size:21px;font-weight:600;margin-top:4px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
   .tot .b .l2{color:var(--na);font-size:11px;margin-top:3px;}
   .tot .grand .v{color:var(--ok);}
@@ -237,14 +239,43 @@ function pintarResumen(id, LISTA){
   }));
   const boletas = LISTA.reduce((n,r)=>n+(regDoc(r)||0),0);
   const faltan = LISTA.filter(r=>regDoc(r)==null && regActivo(r)).length;
-  const pct = v => boletas ? Math.round(v/boletas*100)+"% de las boletas" : "&nbsp;";
-  document.getElementById(id).innerHTML =
-    `<div class="b"><div class="l">Total boletas</div><div class="v">${boletas?CLP(boletas)+(faltan?'<span class="missing">*</span>':""):'<span class="missing">—</span>'}</div>`
-    + `<div class="l2">${faltan ? "faltan "+faltan+" por cargar" : "todas cargadas"}</div></div>`
-    + DATA.seguros.map(s=>`<div class="b"><div class="l">${s.nombre}</div><div class="v">${CLP(tot[s.key])}</div>`
-       + `<div class="l2">${pct(tot[s.key])}</div></div>`).join("")
-    + `<div class="b grand"><div class="l">Total recuperado</div><div class="v">${CLP(grand)}</div>`
-    + `<div class="l2">${pct(grand)}</div></div>`;
+  const ses = LISTA.reduce((n,r)=>n+(regSes(r)||0),0);
+  const pctN = v => boletas ? Math.round(v/boletas*100) : null;
+  const pct = v => pctN(v)===null ? "&nbsp;" : pctN(v)+"% de las boletas";
+  const enTramite = LISTA.reduce((n,r)=>n+DATA.seguros.filter(sg=>{
+    const c=r[sg.key]; return c && c.estado==="ingresado"; }).length, 0);
+  const tarjeta = (clase, titulo, valor, abajo, tip) =>
+    `<div class="b ${clase} cellwrap" data-tip="${tip}"><div class="l">${titulo}`
+    + `<span class="info">i</span></div><div class="v">${valor}</div><div class="l2">${abajo}</div></div>`;
+
+  let html = tarjeta("", "Total boletas",
+    boletas ? CLP(boletas)+(faltan?'<span class="missing">*</span>':"") : '<span class="missing">—</span>',
+    faltan ? "faltan "+faltan+" por cargar" : "todas cargadas",
+    tipData("Total boletas", [
+      ["Qué es:", "Lo que costó la atención, sin descuentos."],
+      ["Cómo se calcula:", "Sumo el monto de cada boleta del profesional en el período elegido."],
+      ses ? ["Sesiones:", ses+" en total, a "+CLP(Math.round(boletas/ses))+" cada una"] : null,
+      faltan ? ["* Ojo:", "faltan "+faltan+" boletas por cargar, así que el total va a subir."]
+             : ["Estado:", "todas las boletas del período están cargadas."]]));
+
+  html += DATA.seguros.map(sg => tarjeta("", sg.nombre, CLP(tot[sg.key]), pct(tot[sg.key]),
+    tipData(sg.nombre, [
+      ["Qué es:", "La plata que <b>"+esc(sg.nombre)+"</b> ya te devolvió."],
+      ["Cómo se calcula:", "Sumo solo los reembolsos <b>ya pagados</b>. Los que están en trámite todavía no cuentan."],
+      pctN(tot[sg.key])!==null ? ["Qué significa el %:",
+        "De cada $100 que costaron las sesiones, "+esc(sg.nombre)+" puso <b>$"+pctN(tot[sg.key])+"</b>."] : null,
+      ses && tot[sg.key] ? ["Por sesión:", CLP(Math.round(tot[sg.key]/ses))] : null]))).join("");
+
+  html += tarjeta("grand", "Total recuperado", CLP(grand), pct(grand),
+    tipData("Total recuperado", [
+      ["Qué es:", "Todo lo que te devolvieron entre las tres, sumado."],
+      ["Cómo se calcula:", DATA.seguros.map(sg=>esc(sg.nombre)+" "+CLP(tot[sg.key])).join(" + ")],
+      pctN(grand)!==null ? ["Qué significa el %:",
+        "De cada $100 que costaron las sesiones, te devolvieron <b>$"+pctN(grand)+"</b> y pusiste <b>$"+(100-pctN(grand))+"</b> de tu bolsillo."] : null,
+      boletas ? ["De tu bolsillo:", "<b>"+CLP(boletas-grand)+"</b>"+(ses?" ("+CLP(Math.round((boletas-grand)/ses))+" por sesión)":"")] : null,
+      enTramite ? ["Puede subir:", enTramite+" solicitud(es) todavía en trámite."] : null]));
+
+  document.getElementById(id).innerHTML = html;
 }
 
 // Desglose por persona con valores por sesión
