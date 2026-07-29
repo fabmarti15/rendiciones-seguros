@@ -27,14 +27,14 @@
   .tot .b{flex:1;min-width:140px;background:#10131a;border:1px solid var(--line);border-radius:12px;padding:12px;}
   .tot .b .l{color:var(--mut);font-size:12px;} .tot .b .v{font-size:20px;font-weight:700;margin-top:3px;}
   .tot .grand{background:linear-gradient(135deg,#1e2a4a,#16203a);border-color:#2f4a8a;}
-  .ppl{display:flex;flex-wrap:wrap;gap:10px;}
-  .ppl .p{flex:1;min-width:200px;background:#10131a;border:1px solid var(--line);border-radius:12px;padding:13px;}
-  .ppl .p .nm{font-weight:700;font-size:15px;margin-bottom:8px;}
-  .ppl .p .big{font-size:22px;font-weight:700;color:var(--ok);}
-  .ppl .p .lbl{color:var(--mut);font-size:11px;}
-  .ppl .p .sub{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;color:var(--mut);font-size:12px;}
-  .ppl .p .sub b{color:var(--txt);font-weight:600;}
-  .ppl .p .pend{margin-top:8px;font-size:12px;color:var(--wait);}
+  .ppl{overflow-x:auto;}
+  .ppl table{min-width:760px;}
+  .ppl td:first-child,.ppl th:first-child{text-align:left;}
+  .ppl td.money{white-space:nowrap;}
+  .ppl td.paid{color:var(--ok);font-weight:700;}
+  .ppl td.cost{color:var(--wait);font-weight:700;}
+  .ppl tfoot td{border-top:2px solid var(--line);border-bottom:0;font-weight:700;background:#10131a;}
+  .ppl .missing{color:var(--mut);font-weight:400;}
   /* Tabla */
   table{width:100%;border-collapse:collapse;font-size:13px;}
   th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);}
@@ -55,6 +55,12 @@
        background:#10131a;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;}
   .hidden{display:none}
   .note{color:var(--wait);font-size:11px;}
+  /* Tooltip hover */
+  .tip{position:fixed;z-index:50;max-width:300px;background:#0b0d12;border:1px solid var(--line);
+       border-radius:12px;padding:11px 13px;font-size:12px;line-height:1.55;color:var(--txt);
+       box-shadow:0 10px 30px rgba(0,0,0,.55);pointer-events:none;}
+  .tip .h{font-weight:700;color:var(--accent);margin-bottom:7px;font-size:12px;}
+  .tip .r{margin:3px 0;} .tip .r .k{color:var(--mut);}
 </style>
 </head>
 <body>
@@ -81,7 +87,11 @@
 
   <div class="card"><h2 style="margin-top:0">💰 Recuperado (liquidado)</h2><div class="tot" id="tot"></div></div>
 
-  <div class="card"><h2 style="margin-top:0">👤 Por persona</h2><div class="ppl" id="ppl"></div></div>
+  <div class="card">
+    <h2 style="margin-top:0">👤 Por persona</h2>
+    <div class="ppl"><table id="ppl"></table></div>
+    <div class="leg">Costo total = documentos − reembolsos. El <b>*</b> indica cálculo parcial: aún faltan montos de boleta.</div>
+  </div>
 
   <div class="card">
     <h2 style="margin-top:0">📋 Detalle por mes</h2>
@@ -139,19 +149,37 @@ document.getElementById("pw").addEventListener("keydown", e => { if(e.key==="Ent
 
 const EST = { liquidado:["ok","✔"], ingresado:["wait","⏳"], falta:["bad","✘"],
               verificar:["wait","⚠"], novino:["na","—"], na:["na","—"] };
-function cell(c){
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const EMO = { liquidado:"✅", ingresado:"⏳", falta:"❌", verificar:"⚠️", novino:"➖", na:"➖" };
+function cell(c, r, s){
   if(!c) return '<span class="na">—</span>';
   const [cls,ic] = EST[c.estado] || ["na","—"];
-  const det = ["Estado: " + ((DATA.leyenda && DATA.leyenda[c.estado]) || c.estado)];
-  if(c.monto!=null) det.push("Monto: " + CLP(c.monto));
-  if(c.solicitud) det.push("N° solicitud: " + c.solicitud);
-  if(c.folio) det.push("Folio: " + c.folio);
-  if(c.nota) det.push("Nota: " + c.nota);
-  const tip = det.join("&#10;").replace(/"/g, "&quot;");
+  const estTxt = (DATA.leyenda && DATA.leyenda[c.estado]) || c.estado;
+  let rows = `<div class="h">${esc(s.nombre)} · ${esc(r.persona)} · ${mesLabel(r.mes)}</div>`;
+  rows += `<div class="r"><span class="k">${EMO[c.estado]||""} Estado:</span> ${esc(estTxt)}</div>`;
+  if(c.monto!=null) rows += `<div class="r"><span class="k">💰 Monto:</span> ${CLP(c.monto)}</div>`;
+  if(c.solicitud) rows += `<div class="r"><span class="k">🧾 Solicitud:</span> ${esc(c.solicitud)}</div>`;
+  if(c.folio) rows += `<div class="r"><span class="k">📄 Folio:</span> ${esc(c.folio)}</div>`;
+  if(c.nota) rows += `<div class="r"><span class="k">📝 Nota:</span> ${esc(c.nota)}</div>`;
+  const tip = encodeURIComponent(rows);
   let inner = `<span class="pill ${cls}">${ic}</span>`;
   if(c.monto!=null && c.estado==="liquidado") inner += `<span class="monto">${CLP(c.monto)}</span>`;
-  return `<span class="cellwrap" title="${tip}">${inner}</span>`;
+  return `<span class="cellwrap" data-tip="${tip}">${inner}</span>`;
 }
+const tipEl = (() => { const d=document.createElement("div"); d.className="tip hidden"; document.body.appendChild(d); return d; })();
+function moveTip(e){ const pad=14; const r=tipEl.getBoundingClientRect();
+  let x=e.clientX+pad, y=e.clientY+pad;
+  if(x+r.width>innerWidth) x=Math.max(8,e.clientX-r.width-pad);
+  if(y+r.height>innerHeight) y=Math.max(8,e.clientY-r.height-pad);
+  tipEl.style.left=x+"px"; tipEl.style.top=y+"px"; }
+function showTip(e){ const t=e.currentTarget.getAttribute("data-tip"); if(!t) return;
+  tipEl.innerHTML=decodeURIComponent(t); tipEl.classList.remove("hidden"); moveTip(e); }
+function hideTip(){ tipEl.classList.add("hidden"); }
+function bindTips(){ document.querySelectorAll(".cellwrap").forEach(el=>{
+  el.addEventListener("mouseenter", showTip); el.addEventListener("mousemove", moveTip);
+  el.addEventListener("mouseleave", hideTip);
+  el.addEventListener("click", e=>{ if(tipEl.classList.contains("hidden")) showTip(e); else hideTip(); });
+}); }
 function render(){
   document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
   // Totales por seguro (solo liquidado)
@@ -162,25 +190,47 @@ function render(){
   document.getElementById("tot").innerHTML =
     DATA.seguros.map(s=>`<div class="b"><div class="l">${s.nombre}</div><div class="v">${CLP(tot[s.key])}</div></div>`).join("")
     + `<div class="b grand"><div class="l">TOTAL recuperado</div><div class="v">${CLP(grand)}</div></div>`;
-  // Por persona
-  const ppl = DATA.personas.map(pe=>{
+  // Por persona: documentos, pagos por seguro y costo final
+  const resumen = DATA.personas.map(pe=>{
     const regs = DATA.registros.filter(r=>r.persona===pe);
-    const porSeg = {}; DATA.seguros.forEach(s=>porSeg[s.key]=0); let recu=0, esperando=0, faltan=0;
-    regs.forEach(r=>DATA.seguros.forEach(s=>{
-      const c=r[s.key]; if(!c) return;
-      if(c.estado==="liquidado" && c.monto){ porSeg[s.key]+=c.monto; recu+=c.monto; }
-      else if(c.estado==="ingresado") esperando++;
-      else if(c.estado==="falta"||c.estado==="verificar") faltan++;
-    }));
-    const sub = DATA.seguros.map(s=>`<span><b>${s.nombre}:</b> ${CLP(porSeg[s.key])}</span>`).join("");
-    const pend = (faltan?`✘ ${faltan} por subir`:"") + (faltan&&esperando?" · ":"") + (esperando?`⏳ ${esperando} esperando`:"");
-    return `<div class="p"><div class="nm">${pe}</div>`
-      + `<div class="lbl">Te han pagado</div><div class="big">${CLP(recu)}</div>`
-      + `<div class="sub">${sub}</div>`
-      + (pend?`<div class="pend">${pend}</div>`:`<div class="pend" style="color:var(--ok)">Todo al día ✓</div>`)
-      + `</div>`;
+    const porSeg = {}; DATA.seguros.forEach(s=>porSeg[s.key]=0);
+    let documentos=0, totalPagado=0, faltanDocumentos=0;
+    regs.forEach(r=>{
+      const activo = DATA.seguros.some(s=>{
+        const c=r[s.key]; return c && c.estado!=="na" && c.estado!=="novino";
+      });
+      if(Number.isFinite(r.monto_documento)) documentos+=r.monto_documento;
+      else if(activo) faltanDocumentos++;
+      DATA.seguros.forEach(s=>{
+        const c=r[s.key];
+        if(c && c.estado==="liquidado" && Number.isFinite(c.monto)){
+          porSeg[s.key]+=c.monto; totalPagado+=c.monto;
+        }
+      });
+    });
+    return {persona:pe, documentos, porSeg, totalPagado, faltanDocumentos};
+  });
+  const thSeg = DATA.seguros.map(s=>`<th>${s.nombre}</th>`).join("");
+  const rows = resumen.map(p=>{
+    const costo = p.documentos===0
+      ? `<span class="missing" title="Sin montos de documentos cargados">—</span>`
+      : CLP(p.documentos-p.totalPagado) + (p.faltanDocumentos ? `<span class="missing" title="Parcial: faltan ${p.faltanDocumentos} montos de documentos">*</span>` : "");
+    return `<tr><td>${esc(p.persona)}</td><td class="money">${CLP(p.documentos)}</td>`
+      + DATA.seguros.map(s=>`<td class="money">${CLP(p.porSeg[s.key])}</td>`).join("")
+      + `<td class="money paid">${CLP(p.totalPagado)}</td><td class="money cost">${costo}</td></tr>`;
   }).join("");
-  document.getElementById("ppl").innerHTML = ppl;
+  const totalDocumentos = resumen.reduce((n,p)=>n+p.documentos,0);
+  const totalPagado = resumen.reduce((n,p)=>n+p.totalPagado,0);
+  const totalPorSeg = {}; DATA.seguros.forEach(s=>totalPorSeg[s.key]=resumen.reduce((n,p)=>n+p.porSeg[s.key],0));
+  const faltanDocumentos = resumen.reduce((n,p)=>n+p.faltanDocumentos,0);
+  const costoTotal = totalDocumentos===0
+    ? `<span class="missing" title="Sin montos de documentos cargados">—</span>`
+    : CLP(totalDocumentos-totalPagado) + (faltanDocumentos ? `<span class="missing" title="Parcial: faltan ${faltanDocumentos} montos de documentos">*</span>` : "");
+  document.getElementById("ppl").innerHTML =
+    `<thead><tr><th>Persona</th><th>Documentos</th>${thSeg}<th>Total pagado</th><th>Costo total</th></tr></thead>`
+    + `<tbody>${rows}</tbody><tfoot><tr><td>Total</td><td class="money">${CLP(totalDocumentos)}</td>`
+    + DATA.seguros.map(s=>`<td class="money">${CLP(totalPorSeg[s.key])}</td>`).join("")
+    + `<td class="money paid">${CLP(totalPagado)}</td><td class="money cost">${costoTotal}</td></tr></tfoot>`;
   // Pendientes
   const pend = DATA.registros.flatMap(r => DATA.seguros.filter(s=>{
     const e=r[s.key]&&r[s.key].estado; return e==="falta"||e==="verificar";
@@ -200,10 +250,11 @@ function render(){
       .sort((a,b)=> orden(a.persona)-orden(b.persona) || a.concepto.localeCompare(b.concepto))
       .forEach(r=>{
         const extra = r.concepto && r.concepto!=="Psicoterapia" ? ` <span class="note">· ${r.concepto}</span>` : "";
-        body += `<tr><td class="per">${r.persona}${extra}</td>${DATA.seguros.map(s=>`<td>${cell(r[s.key])}</td>`).join("")}</tr>`;
+        body += `<tr><td class="per">${r.persona}${extra}</td>${DATA.seguros.map(s=>`<td>${cell(r[s.key], r, s)}</td>`).join("")}</tr>`;
       });
   });
   document.getElementById("tabla").innerHTML = head + body;
+  bindTips();
 }
 // Editor
 function toggleEdit(){

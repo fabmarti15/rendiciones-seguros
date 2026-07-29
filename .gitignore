@@ -1,7 +1,15 @@
 # NUNCA subir los datos sin cifrar ni la clave
 datos.json
 clave.txt
-Boletas/
+Documentos/
 Informes Psicoterapia/
 .DS_Store
 .claude/
+Portales.md
+credenciales.local.md
+Polizas/
+datos.json.bak-*
+CONTEXTO.md
+PASO-A-PASO-Bupa-Sura.md
+archivo/
+tmp/

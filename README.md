@@ -31,3 +31,5 @@ cd "Rendiciones Salud"
 3. Marcar estados en el tablero.
 
 Estados: `liquidado` (con `monto`), `ingresado`, `falta`, `verificar`, `novino`, `na`.
+
+Para calcular **Costo total**, cada registro atendido debe incluir `monto_documento` con el valor original de la boleta o documento. Si falta, el tablero muestra `—` para evitar cifras falsas.

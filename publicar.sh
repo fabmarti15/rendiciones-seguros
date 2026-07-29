@@ -4,10 +4,12 @@
 set -e
 cd "$(dirname "$0")"
 if [ -z "$1" ]; then
-  echo "Uso: ./publicar.sh \"TU_CLAVE\" [\"mensaje de commit\"]"
-  exit 1
+  read -r -s -p "Clave del tablero: " CLAVE; echo
+else
+  CLAVE="$1"
 fi
-node build.js "$1"
+if [ -z "$CLAVE" ]; then echo "No ingresaste clave. Cancelado."; exit 1; fi
+node build.js "$CLAVE"
 git add index.html
 git commit -m "${2:-Actualiza rendiciones}"
 git push
