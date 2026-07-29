@@ -59,6 +59,7 @@
   .ppl tr.rses td{font-size:11px;color:var(--na);padding-top:0;font-weight:400;}
   .ppl tr.rses td.sub{font-style:italic;padding-left:14px;}
   .ppl td.pc{color:var(--mut);}
+  .mk{margin-left:5px;font-size:11px;font-weight:400;vertical-align:middle;}
   .ppl td.nses{color:var(--mut);font-weight:400;}
   .missing{color:var(--na);font-weight:400;}
   #tabla-psico,#tabla-otros{min-width:820px;}
@@ -74,6 +75,7 @@
        border-bottom:1px solid var(--line);white-space:nowrap;letter-spacing:.01em;}
   .pill{display:inline-block;font-size:12px;}
   .monto{display:block;font-size:11px;color:var(--mut);margin-top:1px;}
+  .pagado{font-variant-numeric:tabular-nums;}
   .ses{display:block;font-size:10px;color:var(--na);margin-top:1px;font-weight:400;}
   .nses{color:var(--mut);font-weight:400;font-size:11px;}
   .unit{margin-top:14px;overflow-x:auto;}
@@ -131,9 +133,9 @@
     <div class="card"><h2>Detalle por mes</h2>
       <div style="overflow-x:auto"><table id="tabla-psico"></table></div>
       <div class="leg">
-        <span><span class="ok">✓</span> Liquidado</span>
-        <span><span class="wait">○</span> En trámite</span>
-        <span><span class="bad">✕</span> Falta rendir</span>
+        <span>Un monto = ya pagado</span>
+        <span><span class="wait">◷</span> Esperando respuesta</span>
+        <span><span class="bad">✕</span> Sin rendir o rechazado</span>
         <span><span class="na">–</span> No aplica</span>
         <span>El <b>*</b> marca cálculo parcial.</span>
       </div>
@@ -170,7 +172,7 @@ const CLP = n => "$" + (n||0).toLocaleString("es-CL");
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const mesLabel = m => { const [y,mm] = m.split("-"); return (MESES[+mm-1]||mm) + " " + y; };
 
-const EST = { liquidado:["ok","✓"], ingresado:["wait","○"], falta:["bad","✕"],
+const EST = { liquidado:["ok","✓"], ingresado:["wait","◷"], falta:["bad","✕"],
               verificar:["wait","!"], novino:["na","–"], na:["na","–"] };
 const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 function cell(c, r, s){
@@ -184,8 +186,9 @@ function cell(c, r, s){
   if(c.folio) rows += `<div class="r"><span class="k">Folio:</span> ${esc(c.folio)}</div>`;
   if(c.nota) rows += `<div class="r"><span class="k">Nota:</span> ${esc(c.nota)}</div>`;
   const tip = encodeURIComponent(rows);
-  let inner = `<span class="pill ${cls}">${ic}</span>`;
-  if(c.monto!=null && c.estado==="liquidado") inner += `<span class="monto">${CLP(c.monto)}</span>`;
+  let inner;
+  if(c.estado==="liquidado" && c.monto!=null) inner = `<span class="pagado">${CLP(c.monto)}</span>`;
+  else inner = `<span class="pill ${cls}">${ic}</span>`;
   return `<span class="cellwrap" data-tip="${tip}">${inner}</span>`;
 }
 // Tooltips genéricos (ℹ)
@@ -330,7 +333,27 @@ function pintarPersonas(id, LISTA){
     const r1 = `<tr class="rtot"><td class="per">${esc(f.pe)}</td>`
       + `<td class="nses">${f.ses||m}</td>`
       + `<td><span class="cellwrap" data-tip="${tipBoletas}">${f.boletas?CLP(f.boletas)+ast:m}</span></td>`
-      + DATA.seguros.map(sg=>`<td>${CLP(f.porSeg[sg.key])}</td>`).join("")
+      + DATA.seguros.map(sg=>{
+          const con = e => f.rs.filter(r=>r[sg.key] && r[sg.key].estado===e);
+          const ing = con("ingresado"), fal = con("falta").concat(con("verificar"));
+          const pag = f.rs.filter(r=>r[sg.key] && r[sg.key].estado==="liquidado");
+          const cero = pag.filter(r=>r[sg.key].monto===0);
+          const na = con("na").concat(con("novino"));
+          let marca = "";
+          if(ing.length) marca = `<span class="mk wait">◷</span>`;
+          else if(fal.length) marca = `<span class="mk bad">✕</span>`;
+          else if(!f.porSeg[sg.key] && na.length) marca = `<span class="mk na">–</span>`;
+          const tip = tipData(esc(sg.nombre)+" · "+f.pe, [
+            ["Ya pagado:", "<b>"+CLP(f.porSeg[sg.key])+"</b>"
+              + (pag.length ? " en "+pag.length+" mes(es): "+esc(mesesDe(pag)) : "")],
+            ing.length ? ["◷ Esperando respuesta:", esc(mesesDe(ing))+" — ya se rindió, falta que resuelvan."] : null,
+            fal.length ? ["✕ Sin rendir:", esc(mesesDe(fal))+" — todavía no se envía la solicitud (o fue rechazada)."] : null,
+            cero.length ? ["Pagado $0:", esc(mesesDe(cero))+" — resuelto, pero sin plata: topó el límite de la póliza."] : null,
+            na.length ? ["– No aplica:", esc(mesesDe(na))+" — este seguro no cubre ese mes."] : null,
+            (!f.porSeg[sg.key] && !ing.length && !fal.length && !na.length)
+              ? ["Por qué $0:", "no hay registros de este seguro en el período."] : null]);
+          return `<td><span class="cellwrap" data-tip="${tip}">${CLP(f.porSeg[sg.key])}${marca}</span></td>`;
+        }).join("")
       + `<td class="paid"><span class="cellwrap" data-tip="${tipCob}">${CLP(f.cobertura)}</span></td>`
       + `<td class="cost${f.neto<0?" neg":""}"><span class="cellwrap" data-tip="${tipNeto}">${f.boletas?CLP(f.neto):m}</span></td>`
       + `<td class="pc">${cob}</td></tr>`;
