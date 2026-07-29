@@ -53,7 +53,13 @@
   td{font-variant-numeric:tabular-nums;}
   td:first-child,th:first-child{text-align:left;}
   .ppl{overflow-x:auto;} .ppl table{min-width:720px;}
-  .ppl tfoot td{border-top:1px solid var(--line);border-bottom:0;font-weight:600;}
+  .ppl tfoot td{border-top:1px solid var(--line);border-bottom:0;}
+  .ppl tr.rtot td{border-bottom:0;padding-bottom:1px;font-weight:500;}
+  .ppl tfoot tr.rtot td{font-weight:600;}
+  .ppl tr.rses td{font-size:11px;color:var(--na);padding-top:0;font-weight:400;}
+  .ppl tr.rses td.sub{font-style:italic;padding-left:14px;}
+  .ppl td.pc{color:var(--mut);}
+  .ppl td.nses{color:var(--mut);font-weight:400;}
   .missing{color:var(--na);font-weight:400;}
   #tabla-psico,#tabla-otros{min-width:820px;}
   .sec{margin-bottom:64px;}
@@ -120,7 +126,7 @@
 
   <section class="sec">
     <h3 class="sech">Psicoterapia</h3>
-    <div class="card"><h2>Resumen</h2><div class="tot" id="tot-psico"></div><div class="unit"><table id="unit-psico"></table></div></div>
+    <div class="card"><h2>Resumen</h2><div class="tot" id="tot-psico"></div></div>
     <div class="card"><h2>Por persona</h2><div class="ppl"><table id="ppl-psico"></table></div></div>
     <div class="card"><h2>Detalle por mes</h2>
       <div style="overflow-x:auto"><table id="tabla-psico"></table></div>
@@ -136,7 +142,7 @@
 
   <section class="sec" id="sec-otros">
     <h3 class="sech">Otras atenciones <span>no psicoterapia</span></h3>
-    <div class="card"><h2>Resumen</h2><div class="tot" id="tot-otros"></div><div class="unit"><table id="unit-otros"></table></div></div>
+    <div class="card"><h2>Resumen</h2><div class="tot" id="tot-otros"></div></div>
     <div class="card"><h2>Por persona</h2><div class="ppl"><table id="ppl-otros"></table></div></div>
     <div class="card"><h2>Detalle por mes</h2>
       <div style="overflow-x:auto"><table id="tabla-otros"></table></div>
@@ -278,111 +284,109 @@ function pintarResumen(id, LISTA){
   document.getElementById(id).innerHTML = html;
 }
 
-// Desglose por persona con valores por sesión
-function pintarUnidades(id, LISTA){
+// ---------- Por persona (totales + por sesión) ----------
+function pintarPersonas(id, LISTA){
   const filas = DATA.personas.map(pe=>{
     const rs = LISTA.filter(r=>r.persona===pe);
     if(!rs.length) return null;
-    const conDoc = rs.filter(r=>regDoc(r)!=null);
+    const conDoc = rs.filter(r=>regDoc(r)!=null), sinDoc = rs.filter(r=>regDoc(r)==null && regActivo(r));
+    const porSeg = {}; DATA.seguros.forEach(sg=>porSeg[sg.key]=0);
+    const segDoc = {}; DATA.seguros.forEach(sg=>segDoc[sg.key]=0);
+    rs.forEach(r=>DATA.seguros.forEach(sg=>{ const c=r[sg.key];
+      if(c && c.estado==="liquidado" && Number.isFinite(c.monto)){
+        porSeg[sg.key]+=c.monto; if(regDoc(r)!=null) segDoc[sg.key]+=c.monto; }}));
     const boletas = conDoc.reduce((n,r)=>n+regDoc(r),0);
-    const cobertura = conDoc.reduce((n,r)=>n+regPagado(r),0);
+    const cobertura = rs.reduce((n,r)=>n+regPagado(r),0);
+    const cobDoc = conDoc.reduce((n,r)=>n+regPagado(r),0);
     const ses = conDoc.reduce((n,r)=>n+(regSes(r)||0),0);
-    const completo = conDoc.every(r=>regSes(r)!=null) && conDoc.length===rs.filter(r=>regActivo(r)).length;
-    return {pe, boletas, cobertura, ses, neto:boletas-cobertura, completo, n:conDoc.length};
+    return {pe, rs, conDoc, sinDoc, porSeg, segDoc, boletas, cobertura, cobDoc, ses,
+            neto: boletas-cobDoc, faltan: sinDoc.length};
   }).filter(Boolean);
-  if(!filas.length || !filas.some(f=>f.ses)){ document.getElementById(id).innerHTML=""; return; }
-  const m = '<span class="missing">—</span>';
-  const c = (v,n) => n ? CLP(Math.round(v/n)) : m;
-  const fila = f => `<tr><td>${esc(f.pe)}</td><td>${CLP(f.boletas)}</td><td>${f.ses||m}</td>`
-    + `<td>${c(f.boletas,f.ses)}</td><td class="paid">${c(f.cobertura,f.ses)}</td>`
-    + `<td class="cost${f.neto<0?" neg":""}">${c(f.neto,f.ses)}</td>`
-    + `<td class="missing">${f.boletas?Math.round(f.cobertura/f.boletas*100)+"%":m}</td></tr>`;
-  const T = filas.reduce((a,f)=>({boletas:a.boletas+f.boletas,cobertura:a.cobertura+f.cobertura,
-    ses:a.ses+f.ses,neto:a.neto+f.neto}),{boletas:0,cobertura:0,ses:0,neto:0});
-  document.getElementById(id).innerHTML =
-    `<thead><tr><th>Persona</th><th>Total boletas</th><th>Sesiones</th>`
-    + `<th>Costo/sesión${infoIcon("Costo por sesión",[
-        ["Qué es:","Lo que cobra el profesional por cada sesión: boletas ÷ sesiones."],
-        ["Solo cuenta:","los meses con boleta y n° de sesiones cargados."]])}</th>`
-    + `<th>Recuperado/sesión${infoIcon("Recuperado por sesión",[
-        ["Qué es:","Lo que devuelven las 3 entidades por cada sesión, en promedio."]])}</th>`
-    + `<th>Neto/sesión${infoIcon("Neto por sesión",[
-        ["Qué es:","Lo que terminas pagando tú por cada sesión."],
-        ["Para qué sirve:","es el número con el que puedes presupuestar el mes."]])}</th>`
-    + `<th>Cobertura</th></tr></thead><tbody>${filas.map(fila).join("")}</tbody>`
-    + `<tfoot><tr><td>Total</td><td>${CLP(T.boletas)}</td><td>${T.ses||m}</td>`
-    + `<td>${c(T.boletas,T.ses)}</td><td class="paid">${c(T.cobertura,T.ses)}</td>`
-    + `<td class="cost">${c(T.neto,T.ses)}</td>`
-    + `<td class="missing">${T.boletas?Math.round(T.cobertura/T.boletas*100)+"%":m}</td></tr></tfoot>`;
-}
+  if(!filas.length){ document.getElementById(id).innerHTML=""; return; }
 
-// ---------- Por persona ----------
-// El Costo real se calcula SOLO sobre los meses con boleta cargada, para no restar
-// reembolsos que no tienen contraparte (eso daba costos negativos falsos).
-function pintarPersonas(id, LISTA){
-  const resumen = DATA.personas.map(pe=>{
-    const regs = LISTA.filter(r=>r.persona===pe);
-    const porSeg = {}; DATA.seguros.forEach(s=>porSeg[s.key]=0);
-    let documentos=0, totalPagado=0, pagadoConDoc=0, faltan=0, conDoc=[], sinDoc=[];
-    regs.forEach(r=>{
-      const doc = regDoc(r), pag = regPagado(r);
-      if(doc!=null){ documentos+=doc; pagadoConDoc+=pag; conDoc.push(r); }
-      else if(regActivo(r)){ faltan++; sinDoc.push(r); }
-      totalPagado += pag;
-      DATA.seguros.forEach(s=>{ const c=r[s.key];
-        if(c && c.estado==="liquidado" && Number.isFinite(c.monto)) porSeg[s.key]+=c.monto; });
-    });
-    return {persona:pe, documentos, porSeg, totalPagado, pagadoConDoc, faltan, conDoc, sinDoc, n:regs.length};
-  }).filter(p=>p.n>0);
-  const lista = rs => rs.length ? rs.map(r=>mesLabel(r.mes)).join(", ") : "—";
-  const thSeg = DATA.seguros.map(s=>`<th>${s.nombre}${infoIcon(s.nombre,[
-      ["Qué es:", "Suma de todo lo que <b>"+esc(s.nombre)+"</b> ya pagó (solo “liquidado”)."],
-      ["No incluye:", "Lo que está en revisión ni lo que falta rendir."]])}</th>`).join("");
-  const rows = resumen.map(p=>{
-    const costoNum = p.documentos - p.pagadoConDoc;
-    const costo = p.documentos===0 ? `<span class="missing">—</span>`
-      : CLP(costoNum) + (p.faltan ? `<span class="missing">*</span>` : "");
-    const tipDoc = wrapTip(CLP(p.documentos), "Total boletas · "+p.persona, [
-      ["Qué es:", "Suma de las boletas con monto cargado."],
-      ["Meses incluidos:", esc(lista(p.conDoc))],
-      p.faltan ? ["Faltan:", esc(lista(p.sinDoc))] : null]);
-    const tipPag = wrapTip(CLP(p.totalPagado), "Total cobertura · "+p.persona, [
-      ...DATA.seguros.map(s=>[esc(s.nombre)+":", CLP(p.porSeg[s.key])]),
-      ["Total:", "<b>"+CLP(p.totalPagado)+"</b>"],
-      p.faltan ? ["Ojo:", "incluye meses sin boleta cargada, por eso puede superar a Total boletas."] : null]);
-    const tipCos = wrapTip(costo, "Costo real · "+p.persona, [
-      ["Fórmula:", "Boletas − cobertura, <b>solo</b> en los meses con boleta cargada."],
-      ["Boletas:", CLP(p.documentos)],
-      ["Cobertura de esos meses:", CLP(p.pagadoConDoc)],
-      ["= De tu bolsillo:", "<b>"+CLP(costoNum)+"</b>"],
-      p.faltan ? ["* Parcial:", "faltan "+p.faltan+" boletas ("+esc(lista(p.sinDoc))+")."] : null]);
-    return `<tr><td>${esc(p.persona)}</td><td class="money">${tipDoc}</td>`
-      + DATA.seguros.map(s=>`<td class="money">${CLP(p.porSeg[s.key])}</td>`).join("")
-      + `<td class="money paid">${tipPag}</td><td class="money cost${costoNum<0?" neg":""}">${tipCos}</td></tr>`;
-  }).join("");
-  const tDoc = resumen.reduce((n,p)=>n+p.documentos,0);
-  const tPag = resumen.reduce((n,p)=>n+p.totalPagado,0);
-  const tConDoc = resumen.reduce((n,p)=>n+p.pagadoConDoc,0);
-  const tSeg = {}; DATA.seguros.forEach(s=>tSeg[s.key]=resumen.reduce((n,p)=>n+p.porSeg[s.key],0));
-  const tFaltan = resumen.reduce((n,p)=>n+p.faltan,0);
-  const tCostoNum = tDoc - tConDoc;
-  const tCosto = tDoc===0 ? `<span class="missing">—</span>`
-    : CLP(tCostoNum) + (tFaltan ? `<span class="missing">*</span>` : "");
-  document.getElementById(id).innerHTML =
-    `<thead><tr><th>Persona</th><th>Total boletas${infoIcon("Total boletas",[
-        ["Qué es:","Lo que costó la atención: el monto que emitió el profesional."],
-        ["Ojo:","Solo cuenta los meses cuya boleta ya está cargada."]])}</th>${thSeg}`
+  const m = '<span class="missing">—</span>';
+  const un = (v,n) => n ? CLP(Math.round(v/n)) : m;
+  const mesesDe = rs => rs.length ? rs.map(r=>mesLabel(r.mes)).join(", ") : "—";
+
+  const parDeFilas = f => {
+    const ast = f.faltan ? '<span class="missing">*</span>' : "";
+    const tipBoletas = tipData("Total boletas · "+f.pe, [
+      ["Qué es:","Lo que costó la atención, sin descuentos."],
+      ["Meses:", esc(mesesDe(f.conDoc))],
+      f.ses ? ["Sesiones:", f.ses+" en total"] : null,
+      f.faltan ? ["* Faltan:", esc(mesesDe(f.sinDoc))+" (sin boleta cargada)"] : null]);
+    const tipCob = tipData("Total cobertura · "+f.pe, [
+      ...DATA.seguros.map(sg=>[esc(sg.nombre)+":", CLP(f.porSeg[sg.key])]),
+      ["Total:", "<b>"+CLP(f.cobertura)+"</b>"],
+      ["Solo cuenta:","lo ya pagado. Lo que está en trámite no suma."]]);
+    const tipNeto = tipData("Costo real · "+f.pe, [
+      ["Qué es:","La plata que quedó de tu bolsillo."],
+      ["Boletas:", CLP(f.boletas)],
+      ["− Cobertura:", CLP(f.cobDoc)],
+      ["= Tu bolsillo:", "<b>"+CLP(f.neto)+"</b>"],
+      f.ses ? ["Por sesión:", CLP(Math.round(f.neto/f.ses))] : null]);
+    const cob = f.boletas ? Math.round(f.cobDoc/f.boletas*100)+"%" : m;
+
+    const r1 = `<tr class="rtot"><td class="per">${esc(f.pe)}</td>`
+      + `<td class="nses">${f.ses||m}</td>`
+      + `<td><span class="cellwrap" data-tip="${tipBoletas}">${f.boletas?CLP(f.boletas)+ast:m}</span></td>`
+      + DATA.seguros.map(sg=>`<td>${CLP(f.porSeg[sg.key])}</td>`).join("")
+      + `<td class="paid"><span class="cellwrap" data-tip="${tipCob}">${CLP(f.cobertura)}</span></td>`
+      + `<td class="cost${f.neto<0?" neg":""}"><span class="cellwrap" data-tip="${tipNeto}">${f.boletas?CLP(f.neto):m}</span></td>`
+      + `<td class="pc">${cob}</td></tr>`;
+
+    const r2 = `<tr class="rses"><td class="per sub">por sesión</td><td></td>`
+      + `<td>${un(f.boletas,f.ses)}</td>`
+      + DATA.seguros.map(sg=>`<td>${un(f.segDoc[sg.key],f.ses)}</td>`).join("")
+      + `<td class="paid">${un(f.cobDoc,f.ses)}</td>`
+      + `<td class="cost${f.neto<0?" neg":""}">${un(f.neto,f.ses)}</td><td></td></tr>`;
+    return r1 + (f.ses ? r2 : "");
+  };
+
+  const T = filas.reduce((a,f)=>{
+    DATA.seguros.forEach(sg=>{ a.porSeg[sg.key]+=f.porSeg[sg.key]; a.segDoc[sg.key]+=f.segDoc[sg.key]; });
+    a.boletas+=f.boletas; a.cobertura+=f.cobertura; a.cobDoc+=f.cobDoc; a.ses+=f.ses; a.faltan+=f.faltan;
+    return a;
+  }, {porSeg:Object.fromEntries(DATA.seguros.map(sg=>[sg.key,0])),
+      segDoc:Object.fromEntries(DATA.seguros.map(sg=>[sg.key,0])),
+      boletas:0,cobertura:0,cobDoc:0,ses:0,faltan:0});
+  T.neto = T.boletas - T.cobDoc;
+  const astT = T.faltan ? '<span class="missing">*</span>' : "";
+  const cobT = T.boletas ? Math.round(T.cobDoc/T.boletas*100)+"%" : m;
+
+  const cabecera = `<thead><tr><th>Persona</th>`
+    + `<th>Ses.${infoIcon("Sesiones",[
+        ["Qué es:","Cuántas sesiones incluye la boleta en el período."],
+        ["De dónde sale:","del detalle escrito en cada boleta."]])}</th>`
+    + `<th>Total boletas${infoIcon("Total boletas",[
+        ["Fila de arriba:","lo que costó todo, sumado."],
+        ["Fila de abajo:","lo mismo dividido por el número de sesiones = precio por sesión."]])}</th>`
+    + DATA.seguros.map(sg=>`<th>${sg.nombre}${infoIcon(sg.nombre,[
+        ["Arriba:","lo que <b>"+esc(sg.nombre)+"</b> ya pagó, sumado."],
+        ["Abajo:","lo mismo por sesión."],
+        ["Solo cuenta:","reembolsos ya pagados."]])}</th>`).join("")
     + `<th>Total cobertura${infoIcon("Total cobertura",[
-        ["Qué es:","Todo lo que devolvieron Más Vida + Sura + Bupa sumado."],
-        ["Solo cuenta:","Reembolsos ya liquidados."]])}</th>`
+        ["Qué es:","Lo que devolvieron las tres entidades juntas."],
+        ["Abajo:","lo mismo por sesión."]])}</th>`
     + `<th>Costo real${infoIcon("Costo real",[
-        ["Qué es:","La plata que quedó de tu bolsillo."],
-        ["Fórmula:","Boletas − cobertura, comparando <b>solo los mismos meses</b>."],
-        ["Por qué el *:","Faltan boletas por cargar; el número va a cambiar cuando estén."],
-        ["Por qué no es una resta simple:","Hay cobertura de meses cuya boleta no está cargada. Restarla daría un negativo falso."]])}</th></tr></thead>`
-    + `<tbody>${rows}</tbody><tfoot><tr><td>Total</td><td class="money">${CLP(tDoc)}</td>`
-    + DATA.seguros.map(s=>`<td class="money">${CLP(tSeg[s.key])}</td>`).join("")
-    + `<td class="money paid">${CLP(tPag)}</td><td class="money cost${tCostoNum<0?" neg":""}">${tCosto}</td></tr></tfoot>`;
+        ["Qué es:","Lo que quedó de tu bolsillo: boletas − cobertura."],
+        ["Abajo:","lo que te cuesta cada sesión después de los reembolsos."]])}</th>`
+    + `<th>Cobertura${infoIcon("Cobertura",[
+        ["Qué es:","Qué parte del costo te devolvieron."],
+        ["Ejemplo:","90% significa que de cada $100 te devolvieron $90."]])}</th></tr></thead>`;
+
+  const pie = `<tfoot><tr class="rtot"><td>Total</td><td class="nses">${T.ses||m}</td>`
+    + `<td>${T.boletas?CLP(T.boletas)+astT:m}</td>`
+    + DATA.seguros.map(sg=>`<td>${CLP(T.porSeg[sg.key])}</td>`).join("")
+    + `<td class="paid">${CLP(T.cobertura)}</td>`
+    + `<td class="cost${T.neto<0?" neg":""}">${T.boletas?CLP(T.neto):m}</td><td class="pc">${cobT}</td></tr>`
+    + (T.ses ? `<tr class="rses"><td class="per sub">por sesión</td><td></td><td>${un(T.boletas,T.ses)}</td>`
+    + DATA.seguros.map(sg=>`<td>${un(T.segDoc[sg.key],T.ses)}</td>`).join("")
+    + `<td class="paid">${un(T.cobDoc,T.ses)}</td>`
+    + `<td class="cost${T.neto<0?" neg":""}">${un(T.neto,T.ses)}</td><td></td></tr>` : "") + `</tfoot>`;
+
+  document.getElementById(id).innerHTML =
+    cabecera + `<tbody>${filas.map(parDeFilas).join("")}</tbody>` + pie;
 }
 
 // ---------- Detalle por mes ----------
@@ -486,14 +490,12 @@ function render(){
   document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
   const psico = REGS.filter(esPsico), otros = REGS.filter(r=>!esPsico(r));
   pintarResumen("tot-psico", psico);
-  pintarUnidades("unit-psico", psico);
   pintarPersonas("ppl-psico", psico);
   pintarDetalle("tabla-psico", psico, false);
   const hayOtros = otros.length>0;
   document.getElementById("sec-otros").style.display = hayOtros ? "" : "none";
   if(hayOtros){
     pintarResumen("tot-otros", otros);
-    pintarUnidades("unit-otros", otros);
     pintarPersonas("ppl-otros", otros);
     pintarDetalle("tabla-otros", otros, true);
   }
