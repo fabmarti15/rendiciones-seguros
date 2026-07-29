@@ -45,6 +45,11 @@
   td.per{text-align:left;color:var(--txt);}
   .pill{display:inline-block;min-width:26px;font-size:12px;}
   .cellwrap{cursor:help;}
+  .info{display:inline-block;width:14px;height:14px;line-height:13px;border-radius:50%;
+       border:1px solid var(--line);color:var(--mut);font-size:10px;font-weight:700;
+       text-align:center;margin-left:5px;vertical-align:middle;font-style:italic;font-family:Georgia,serif;}
+  .info:hover{color:var(--accent);border-color:var(--accent);}
+  td.cost.neg{color:var(--bad);}
   .monto{display:block;font-size:11px;color:var(--mut);}
   .ok{color:var(--ok)} .wait{color:var(--wait)} .bad{color:var(--bad)} .na{color:var(--na)}
   h2{font-size:15px;margin:18px 0 8px;}
@@ -79,7 +84,7 @@
   <div class="card">
     <h2 style="margin-top:0">👤 Por persona</h2>
     <div class="ppl"><table id="ppl"></table></div>
-    <div class="leg">Costo total = documentos − reembolsos. El <b>*</b> indica cálculo parcial: aún faltan montos de boleta.</div>
+    <div class="leg">Pasa el cursor por la <b>i</b> o por cualquier monto para ver de dónde sale. El <b>*</b> marca cálculo parcial: faltan boletas por cargar.</div>
   </div>
 
   <div class="card">
@@ -133,6 +138,22 @@ function cell(c, r, s){
   if(c.monto!=null && c.estado==="liquidado") inner += `<span class="monto">${CLP(c.monto)}</span>`;
   return `<span class="cellwrap" data-tip="${tip}">${inner}</span>`;
 }
+// Tooltips genéricos (ℹ)
+function tipData(titulo, filas){
+  const html = `<div class="h">${esc(titulo)}</div>`
+    + filas.filter(Boolean).map(([k,v])=>`<div class="r"><span class="k">${k}</span> ${v}</div>`).join("");
+  return encodeURIComponent(html);
+}
+const infoIcon = (t,f) => `<span class="cellwrap info" data-tip="${tipData(t,f)}">i</span>`;
+const wrapTip  = (txt,t,f) => `<span class="cellwrap" data-tip="${tipData(t,f)}">${txt}</span>`;
+// Helpers de cálculo
+const regActivo = r => DATA.seguros.some(s=>{ const c=r[s.key]; return c && c.estado!=="na" && c.estado!=="novino"; });
+const regPagado = r => DATA.seguros.reduce((n,s)=>{ const c=r[s.key];
+  return n + (c && c.estado==="liquidado" && Number.isFinite(c.monto) ? c.monto : 0); },0);
+const regDoc = r => Number.isFinite(r.monto_documento) ? r.monto_documento : null;
+const detallePagos = r => DATA.seguros.map(s=>{ const c=r[s.key];
+  return (c && c.estado==="liquidado" && Number.isFinite(c.monto)) ? [s.nombre+":", CLP(c.monto)] : null; }).filter(Boolean);
+
 const tipEl = (() => { const d=document.createElement("div"); d.className="tip hidden"; document.body.appendChild(d); return d; })();
 function moveTip(e){ const pad=14; const r=tipEl.getBoundingClientRect();
   let x=e.clientX+pad, y=e.clientY+pad;
@@ -158,46 +179,72 @@ function render(){
     DATA.seguros.map(s=>`<div class="b"><div class="l">${s.nombre}</div><div class="v">${CLP(tot[s.key])}</div></div>`).join("")
     + `<div class="b grand"><div class="l">TOTAL recuperado</div><div class="v">${CLP(grand)}</div></div>`;
   // Por persona: documentos, pagos por seguro y costo final
+  // IMPORTANTE: el Costo total se calcula SOLO sobre los meses cuyo monto de boleta se conoce,
+  // para no restar reembolsos de meses sin documento cargado (eso daba costos negativos).
   const resumen = DATA.personas.map(pe=>{
     const regs = DATA.registros.filter(r=>r.persona===pe);
     const porSeg = {}; DATA.seguros.forEach(s=>porSeg[s.key]=0);
-    let documentos=0, totalPagado=0, faltanDocumentos=0;
+    let documentos=0, totalPagado=0, pagadoConDoc=0, faltan=0, conDoc=[], sinDoc=[];
     regs.forEach(r=>{
-      const activo = DATA.seguros.some(s=>{
-        const c=r[s.key]; return c && c.estado!=="na" && c.estado!=="novino";
-      });
-      if(Number.isFinite(r.monto_documento)) documentos+=r.monto_documento;
-      else if(activo) faltanDocumentos++;
-      DATA.seguros.forEach(s=>{
-        const c=r[s.key];
-        if(c && c.estado==="liquidado" && Number.isFinite(c.monto)){
-          porSeg[s.key]+=c.monto; totalPagado+=c.monto;
-        }
-      });
+      const doc = regDoc(r), pag = regPagado(r);
+      if(doc!=null){ documentos+=doc; pagadoConDoc+=pag; conDoc.push(r); }
+      else if(regActivo(r)){ faltan++; sinDoc.push(r); }
+      totalPagado += pag;
+      DATA.seguros.forEach(s=>{ const c=r[s.key];
+        if(c && c.estado==="liquidado" && Number.isFinite(c.monto)) porSeg[s.key]+=c.monto; });
     });
-    return {persona:pe, documentos, porSeg, totalPagado, faltanDocumentos};
+    return {persona:pe, documentos, porSeg, totalPagado, pagadoConDoc, faltan, conDoc, sinDoc};
   });
-  const thSeg = DATA.seguros.map(s=>`<th>${s.nombre}</th>`).join("");
+  const listaMeses = rs => rs.length ? rs.map(r=>mesLabel(r.mes)).join(", ") : "—";
+  const thSeg = DATA.seguros.map(s=>`<th>${s.nombre}${infoIcon(s.nombre,[
+      ["Qué es:", "Suma de todo lo que <b>"+esc(s.nombre)+"</b> ya pagó (solo estados “liquidado”)."],
+      ["No incluye:", "Lo ingresado y aún en revisión, ni lo que falta rendir."]])}</th>`).join("");
   const rows = resumen.map(p=>{
+    const costoNum = p.documentos - p.pagadoConDoc;
     const costo = p.documentos===0
-      ? `<span class="missing" title="Sin montos de documentos cargados">—</span>`
-      : CLP(p.documentos-p.totalPagado) + (p.faltanDocumentos ? `<span class="missing" title="Parcial: faltan ${p.faltanDocumentos} montos de documentos">*</span>` : "");
-    return `<tr><td>${esc(p.persona)}</td><td class="money">${CLP(p.documentos)}</td>`
+      ? `<span class="missing">—</span>`
+      : CLP(costoNum) + (p.faltan ? `<span class="missing">*</span>` : "");
+    const tipDoc = wrapTip(CLP(p.documentos), "Documentos · "+p.persona, [
+      ["Qué es:", "Suma de las boletas con monto cargado."],
+      ["Meses incluidos:", esc(listaMeses(p.conDoc))],
+      p.faltan ? ["Faltan:", esc(listaMeses(p.sinDoc))] : null]);
+    const tipPag = wrapTip(CLP(p.totalPagado), "Total pagado · "+p.persona, [
+      ["Qué es:", "Todo lo reembolsado por las 3 entidades, en <b>todos</b> los meses."],
+      ...DATA.seguros.map(s=>[esc(s.nombre)+":", CLP(p.porSeg[s.key])]),
+      ["Ojo:", "Incluye meses sin boleta cargada, por eso puede superar a Documentos."]]);
+    const tipCos = wrapTip(costo, "Costo total · "+p.persona, [
+      ["Fórmula:", "Boletas − reembolsos, <b>solo</b> en los meses con boleta cargada."],
+      ["Boletas:", CLP(p.documentos)],
+      ["Reembolsos de esos meses:", CLP(p.pagadoConDoc)],
+      ["= De tu bolsillo:", "<b>"+CLP(costoNum)+"</b>"],
+      p.faltan ? ["* Parcial:", "faltan "+p.faltan+" boletas ("+esc(listaMeses(p.sinDoc))+"), aún no contadas."] : null]);
+    return `<tr><td>${esc(p.persona)}</td><td class="money">${tipDoc}</td>`
       + DATA.seguros.map(s=>`<td class="money">${CLP(p.porSeg[s.key])}</td>`).join("")
-      + `<td class="money paid">${CLP(p.totalPagado)}</td><td class="money cost">${costo}</td></tr>`;
+      + `<td class="money paid">${tipPag}</td><td class="money cost${costoNum<0?" neg":""}">${tipCos}</td></tr>`;
   }).join("");
   const totalDocumentos = resumen.reduce((n,p)=>n+p.documentos,0);
   const totalPagado = resumen.reduce((n,p)=>n+p.totalPagado,0);
+  const totalConDoc = resumen.reduce((n,p)=>n+p.pagadoConDoc,0);
   const totalPorSeg = {}; DATA.seguros.forEach(s=>totalPorSeg[s.key]=resumen.reduce((n,p)=>n+p.porSeg[s.key],0));
-  const faltanDocumentos = resumen.reduce((n,p)=>n+p.faltanDocumentos,0);
-  const costoTotal = totalDocumentos===0
-    ? `<span class="missing" title="Sin montos de documentos cargados">—</span>`
-    : CLP(totalDocumentos-totalPagado) + (faltanDocumentos ? `<span class="missing" title="Parcial: faltan ${faltanDocumentos} montos de documentos">*</span>` : "");
+  const faltanDocumentos = resumen.reduce((n,p)=>n+p.faltan,0);
+  const costoNumT = totalDocumentos - totalConDoc;
+  const costoTotal = totalDocumentos===0 ? `<span class="missing">—</span>`
+    : CLP(costoNumT) + (faltanDocumentos ? `<span class="missing">*</span>` : "");
   document.getElementById("ppl").innerHTML =
-    `<thead><tr><th>Persona</th><th>Documentos</th>${thSeg}<th>Total pagado</th><th>Costo total</th></tr></thead>`
+    `<thead><tr><th>Persona</th><th>Documentos${infoIcon("Documentos",[
+        ["Qué es:","Monto total de las boletas emitidas por el profesional (lo que costó de verdad)."],
+        ["Ojo:","Solo cuenta los meses cuya boleta ya está cargada en el sistema."]])}</th>${thSeg}`
+    + `<th>Total pagado${infoIcon("Total pagado",[
+        ["Qué es:","Todo lo que devolvieron Más Vida + Sura + Bupa sumado."],
+        ["Solo cuenta:","Reembolsos ya liquidados. Lo que está en revisión no suma."]])}</th>`
+    + `<th>Costo total${infoIcon("Costo total",[
+        ["Qué es:","La plata que quedó de tu bolsillo."],
+        ["Fórmula:","Boletas − reembolsos, comparando <b>solo los mismos meses</b>."],
+        ["Por qué el *:","Faltan boletas por cargar; el número va a cambiar cuando estén."],
+        ["Por qué no es Documentos − Total pagado:","Hay reembolsos de meses cuya boleta todavía no está cargada. Restarlos daría un negativo falso."]])}</th></tr></thead>`
     + `<tbody>${rows}</tbody><tfoot><tr><td>Total</td><td class="money">${CLP(totalDocumentos)}</td>`
     + DATA.seguros.map(s=>`<td class="money">${CLP(totalPorSeg[s.key])}</td>`).join("")
-    + `<td class="money paid">${CLP(totalPagado)}</td><td class="money cost">${costoTotal}</td></tr></tfoot>`;
+    + `<td class="money paid">${CLP(totalPagado)}</td><td class="money cost${costoNumT<0?" neg":""}">${costoTotal}</td></tr></tfoot>`;
   // Pendientes
   const pend = DATA.registros.flatMap(r => DATA.seguros.filter(s=>{
     const e=r[s.key]&&r[s.key].estado; return e==="falta"||e==="verificar";
@@ -206,19 +253,55 @@ function render(){
   }));
   document.getElementById("pend").innerHTML = pend.length ? pend.join("") : "<li>Todo al día 🎉</li>";
   // Tabla agrupada por mes (una fila por persona; columnas = seguros)
-  const NCOL = DATA.seguros.length + 1;
-  const head = `<tr><th style="text-align:left">Persona</th>${DATA.seguros.map(s=>`<th>${s.nombre}</th>`).join("")}</tr>`;
+  const NCOL = DATA.seguros.length + 3;
+  const head = `<tr><th style="text-align:left">Persona</th>${DATA.seguros.map(s=>`<th>${s.nombre}</th>`).join("")}`
+    + `<th>Total pagado${infoIcon("Total pagado (fila)",[
+        ["Qué es:","Suma de lo ya liquidado por las 3 entidades para esa persona en ese mes."],
+        ["No incluye:","Solicitudes en revisión (⏳) ni lo que falta rendir (✘)."]])}</th>`
+    + `<th>Costo total${infoIcon("Costo total (fila)",[
+        ["Qué es:","Boleta del mes − lo reembolsado. Es lo que quedó de tu bolsillo ese mes."],
+        ["Si dice “—”:","Todavía no está cargado el monto de esa boleta."],
+        ["Puede bajar:","Si hay solicitudes en revisión, al liquidarse el costo baja."]])}</th></tr>`;
   const meses = [...new Set(DATA.registros.map(r=>r.mes))].sort((a,b)=>b.localeCompare(a));
   const orden = p => { const i = DATA.personas.indexOf(p); return i<0 ? 99 : i; };
   let body = "";
   meses.forEach(m=>{
-    body += `<tr class="mesrow"><td colspan="${NCOL}">${mesLabel(m)}</td></tr>`;
-    DATA.registros.filter(r=>r.mes===m)
-      .sort((a,b)=> orden(a.persona)-orden(b.persona) || a.concepto.localeCompare(b.concepto))
-      .forEach(r=>{
-        const extra = r.concepto && r.concepto!=="Psicoterapia" ? ` <span class="note">· ${r.concepto}</span>` : "";
-        body += `<tr><td class="per">${r.persona}${extra}</td>${DATA.seguros.map(s=>`<td>${cell(r[s.key], r, s)}</td>`).join("")}</tr>`;
-      });
+    const regsM = DATA.registros.filter(r=>r.mes===m)
+      .sort((a,b)=> orden(a.persona)-orden(b.persona) || a.concepto.localeCompare(b.concepto));
+    const pagM = regsM.reduce((n,r)=>n+regPagado(r),0);
+    const docM = regsM.reduce((n,r)=>n+(regDoc(r)||0),0);
+    const parcialM = regsM.some(r=>regDoc(r)==null && regActivo(r));
+    const costoM = docM ? CLP(docM - regsM.filter(r=>regDoc(r)!=null).reduce((n,r)=>n+regPagado(r),0)) + (parcialM?'<span class="missing">*</span>':"") : '<span class="missing">—</span>';
+    body += `<tr class="mesrow"><td colspan="${DATA.seguros.length+1}">${mesLabel(m)}</td>`
+      + `<td class="money paid">${CLP(pagM)}</td><td class="money cost">${costoM}</td></tr>`;
+    regsM.forEach(r=>{
+      const extra = r.concepto && r.concepto!=="Psicoterapia" ? ` <span class="note">· ${r.concepto}</span>` : "";
+      const doc = regDoc(r), pag = regPagado(r);
+      const pend = DATA.seguros.filter(s=>{const c=r[s.key]; return c && (c.estado==="ingresado"||c.estado==="falta"||c.estado==="verificar");}).map(s=>s.nombre);
+      const tipPag = wrapTip(CLP(pag), `Total pagado · ${r.persona} · ${mesLabel(r.mes)}`, [
+        ...(detallePagos(r).length ? detallePagos(r) : [["", "Nada liquidado todavía."]]),
+        ["Total:", "<b>"+CLP(pag)+"</b>"],
+        pend.length ? ["Pendiente en:", esc(pend.join(", "))] : null]);
+      let celdaCosto;
+      if(doc==null){
+        celdaCosto = wrapTip('<span class="missing">—</span>', `Costo · ${r.persona} · ${mesLabel(r.mes)}`, [
+          ["Falta:", "el monto de la boleta de este mes."],
+          ["Ya reembolsado:", CLP(pag)],
+          ["Para calcularlo:", "carga <code>monto_documento</code> en este registro."]]);
+      } else {
+        const c = doc - pag;
+        celdaCosto = wrapTip(CLP(c), `Costo · ${r.persona} · ${mesLabel(r.mes)}`, [
+          ["Boleta:", CLP(doc) + (r.monto_documento_nota ? ` <span class="k">(${esc(r.monto_documento_nota)})</span>` : "")],
+          r.monto_documento_origen==="inferido" ? ["⚠ Monto inferido:", "no viene de la boleta, se dedujo de las liquidaciones."] : null,
+          ...detallePagos(r),
+          ["− Reembolsos:", CLP(pag)],
+          ["= De tu bolsillo:", "<b>"+CLP(c)+"</b>"],
+          pend.length ? ["Ojo:", "aún hay solicitudes en curso en "+esc(pend.join(", "))+"; el costo puede bajar."] : null]);
+      }
+      body += `<tr><td class="per">${r.persona}${extra}</td>`
+        + DATA.seguros.map(s=>`<td>${cell(r[s.key], r, s)}</td>`).join("")
+        + `<td class="money paid">${tipPag}</td><td class="money cost">${celdaCosto}</td></tr>`;
+    });
   });
   document.getElementById("tabla").innerHTML = head + body;
   bindTips();
