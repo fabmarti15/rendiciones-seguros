@@ -1,29 +1,26 @@
 # Rendiciones Salud
 
-Tablero privado para llevar las rendiciones mensuales de salud (Isapre Más Vida + seguros complementarios Sura y Bupa) de Fabián, Jacinta y Vale.
+Tablero público para llevar las rendiciones mensuales de salud (Isapre Más Vida + seguros complementarios Sura y Bupa) de Fabián, Jacinta y Vale.
 
 ## Cómo funciona
-- `datos.json` → fuente de la verdad, **en texto plano, solo local** (está en `.gitignore`, NUNCA se sube).
-- `build.js` → cifra `datos.json` con tu clave (AES-256-GCM) y genera `index.html`.
-- `index.html` → tablero publicable. Aunque el repo sea público, sin la clave los datos son ilegibles.
+- `datos.json` → fuente de la verdad local (está en `.gitignore`).
+- `build.js` → inserta los datos en `index.html`.
+- `index.html` → tablero público, sin clave.
 
 ## Actualizar (2 formas)
 
 **A) Desde el navegador (sin terminal):**
-1. Abre el tablero, entra con tu clave.
-2. Botón **✏️ Editar** → edita el JSON → **⬇️ Descargar index.html cifrado**.
+1. Abre el tablero.
+2. Botón **✏️ Editar** → edita el JSON → **⬇️ Descargar index.html**.
 3. Sube ese `index.html` a GitHub (reemplaza el anterior).
 
 **B) Desde la terminal (recomendado, sin gastar tokens):**
 ```bash
 cd "Rendiciones Salud"
 # edita datos.json con cualquier editor
-./publicar.sh "TU_CLAVE" "mensaje opcional"
+./publicar.sh "mensaje opcional"
 ```
-`publicar.sh` cifra, regenera `index.html` y hace commit+push solo.
-
-## Cambiar la clave
-`node build.js "NUEVA_CLAVE"` y vuelve a subir `index.html`.
+`publicar.sh` regenera `index.html` y hace commit+push.
 
 ## Flujo mensual
 1. 2º miércoles: rendir en Isapre Más Vida (los 3).

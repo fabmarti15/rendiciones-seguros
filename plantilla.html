@@ -64,24 +64,13 @@
 </style>
 </head>
 <body>
-<!-- Pantalla de clave -->
-<div id="gate">
-  <h1>🔐 Rendiciones Salud</h1>
-  <p>Ingresa tu clave para ver el tablero.</p>
-  <div style="margin-top:16px;text-align:left;">
-    <input id="pw" type="password" placeholder="Clave" autofocus>
-    <button style="width:100%;margin-top:10px;" onclick="unlock()">Entrar</button>
-    <div class="err" id="err"></div>
-  </div>
-</div>
-
 <!-- App -->
-<div id="app" class="wrap hidden">
+<div id="app" class="wrap">
   <div class="bar">
     <div><h1>Rendiciones Salud</h1><div class="sub" id="upd"></div></div>
     <div style="display:flex;gap:8px;">
       <button class="ghost" onclick="toggleEdit()">✏️ Editar</button>
-      <button class="ghost" onclick="location.reload()">🔒 Salir</button>
+      <button class="ghost" onclick="location.reload()">↻ Recargar</button>
     </div>
   </div>
 
@@ -109,55 +98,21 @@
   <!-- Editor -->
   <div class="card hidden" id="editor">
     <h2 style="margin-top:0">✏️ Editar datos</h2>
-    <p class="sub">Edita el JSON y descarga el <b>index.html</b> actualizado (queda cifrado con tu misma clave). Luego súbelo a GitHub.</p>
+    <p class="sub">Edita el JSON y descarga el <b>index.html</b> actualizado. Luego súbelo a GitHub.</p>
     <textarea id="json"></textarea>
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
       <button onclick="applyEdit()">Aplicar (previsualizar)</button>
-      <button class="ghost" onclick="downloadHtml()">⬇️ Descargar index.html cifrado</button>
+      <button class="ghost" onclick="downloadHtml()">⬇️ Descargar index.html</button>
     </div>
     <div class="err" id="ederr"></div>
   </div>
 </div>
 
 <script>
-const PAYLOAD = "__PAYLOAD__";
-let KEY = null, DATA = null;
-const enc = new TextEncoder(), dec = new TextDecoder();
-const b64d = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-const b64e = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+let DATA = JSON.parse("__DATA_JSON__");
 const CLP = n => "$" + (n||0).toLocaleString("es-CL");
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const mesLabel = m => { const [y,mm] = m.split("-"); return (MESES[+mm-1]||mm) + " " + y; };
-
-async function deriveKey(pw, salt, iter){
-  const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:iter, hash:"SHA-256"},
-    base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
-}
-async function unlock(){
-  const pw = document.getElementById("pw").value.trim();
-  let plain;
-  try{
-    KEY = await deriveKey(pw, b64d(PAYLOAD.salt), PAYLOAD.iter);
-    plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64d(PAYLOAD.iv)}, KEY, b64d(PAYLOAD.data));
-    DATA = JSON.parse(dec.decode(plain));
-  }catch(e){
-    document.getElementById("err").textContent = "Clave incorrecta.";
-    return;
-  }
-  try{
-    document.getElementById("err").textContent = "";
-    document.getElementById("gate").classList.add("hidden");
-    document.getElementById("app").classList.remove("hidden");
-    render();
-  }catch(e){
-    document.getElementById("gate").classList.remove("hidden");
-    document.getElementById("app").classList.add("hidden");
-    document.getElementById("err").textContent = "Error al cargar el tablero. Actualiza la página.";
-    console.error(e);
-  }
-}
-document.getElementById("pw").addEventListener("keydown", e => { if(e.key==="Enter") unlock(); });
 
 const EST = { liquidado:["ok","✔"], ingresado:["wait","⏳"], falta:["bad","✘"],
               verificar:["wait","⚠"], novino:["na","—"], na:["na","—"] };
@@ -278,20 +233,17 @@ function applyEdit(){
   try{ DATA = JSON.parse(document.getElementById("json").value); document.getElementById("ederr").textContent=""; render(); }
   catch(e){ document.getElementById("ederr").textContent = "JSON inválido: " + e.message; }
 }
-async function downloadHtml(){
+function downloadHtml(){
   try{
     const plain = JSON.parse(document.getElementById("json").value);
     const json = JSON.stringify(plain);
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await deriveKey(document.getElementById("pw").value, salt, PAYLOAD.iter);
-    const ctTag = await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, enc.encode(json));
-    const newPayload = { salt:b64e(salt), iv:b64e(iv), iter:PAYLOAD.iter, data:b64e(ctTag) };
-    const html = document.documentElement.outerHTML.replace(/const PAYLOAD = .*?;/s, 'const PAYLOAD = '+JSON.stringify(newPayload)+';');
+    const encoded = JSON.stringify(json).replace(/</g,"\\u003c").replace(/\u2028/g,"\\u2028").replace(/\u2029/g,"\\u2029");
+    const html = document.documentElement.outerHTML.replace(/let DATA = JSON\.parse\(.*?\);/s, "let DATA = JSON.parse("+encoded+");");
     const blob = new Blob(["<!DOCTYPE html>\n"+html], {type:"text/html"});
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "index.html"; a.click();
   }catch(e){ document.getElementById("ederr").textContent = "Error: " + e.message; }
 }
+render();
 </script>
 </body>
 </html>
