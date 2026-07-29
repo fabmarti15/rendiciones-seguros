@@ -135,15 +135,27 @@ async function deriveKey(pw, salt, iter){
     base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
 }
 async function unlock(){
-  const pw = document.getElementById("pw").value;
+  const pw = document.getElementById("pw").value.trim();
+  let plain;
   try{
     KEY = await deriveKey(pw, b64d(PAYLOAD.salt), PAYLOAD.iter);
-    const plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64d(PAYLOAD.iv)}, KEY, b64d(PAYLOAD.data));
+    plain = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64d(PAYLOAD.iv)}, KEY, b64d(PAYLOAD.data));
     DATA = JSON.parse(dec.decode(plain));
+  }catch(e){
+    document.getElementById("err").textContent = "Clave incorrecta.";
+    return;
+  }
+  try{
+    document.getElementById("err").textContent = "";
     document.getElementById("gate").classList.add("hidden");
     document.getElementById("app").classList.remove("hidden");
     render();
-  }catch(e){ document.getElementById("err").textContent = "Clave incorrecta."; }
+  }catch(e){
+    document.getElementById("gate").classList.remove("hidden");
+    document.getElementById("app").classList.add("hidden");
+    document.getElementById("err").textContent = "Error al cargar el tablero. Actualiza la página.";
+    console.error(e);
+  }
 }
 document.getElementById("pw").addEventListener("keydown", e => { if(e.key==="Enter") unlock(); });
 
