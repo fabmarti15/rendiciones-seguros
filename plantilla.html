@@ -87,8 +87,13 @@
        border:1px solid var(--na);color:var(--na);font-size:9px;font-weight:700;text-align:center;
        margin-left:5px;vertical-align:middle;font-style:italic;font-family:Georgia,serif;}
   .info:hover{color:var(--txt);border-color:var(--txt);}
-  .pend{list-style:none;padding:0;margin:0;}
-  .pend li{padding:7px 0;font-size:13px;border-bottom:1px solid var(--line2);}
+  .pendres{margin:0 0 14px;color:var(--mut);font-size:13px;}
+  .pendt{font-size:13px;} .pendt td,.pendt th{text-align:left;}
+  .pendt td.mes{color:var(--mut);white-space:nowrap;}
+  .pchip{display:inline-block;border:1px solid var(--line);border-radius:20px;
+         padding:2px 10px;font-size:11px;margin:2px 4px 2px 0;white-space:nowrap;}
+  .pchip.wait{color:var(--wait);border-color:#ecd9ae;}
+  .pchip.bad{color:var(--bad);border-color:#f0cdc8;}
   .leg{color:var(--mut);font-size:12px;margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;}
   .note{color:var(--mut);font-size:11px;}
   textarea{width:100%;min-height:320px;font-family:ui-monospace,Menlo,monospace;font-size:12px;
@@ -151,7 +156,7 @@
     </div>
   </section>
 
-  <div class="card"><h2>Pendiente</h2><ul class="pend" id="pend"></ul></div>
+  <div class="card"><h2>Pendiente</h2><div class="pend" id="pend"></div></div>
 
   <!-- Editor -->
   <div class="card hidden" id="editor">
@@ -494,15 +499,49 @@ function pintarDetalle(id, LISTA, mostrarConcepto){
 
 // ---------- Pendientes ----------
 function pintarPendientes(LISTA){
-  const pend = LISTA.flatMap(r => DATA.seguros.filter(s=>{
-    const e=r[s.key]&&r[s.key].estado; return e==="falta"||e==="verificar";
-  }).map(s=>{ const c=r[s.key]; const ic=c.estado==="falta"?"✕":"!";
-    return `<li><b>${esc(r.persona)}</b> · ${mesLabel(r.mes)} · ${esc(r.concepto)} → <b>${esc(s.nombre)}</b> `
-      + `<span class="${c.estado==="falta"?"bad":"wait"}">${ic}</span>`
-      + `${c.nota?` <span class="note">(${esc(c.nota)})</span>`:""}</li>`;
-  }));
-  document.getElementById("pend").innerHTML = pend.length ? pend.join("")
-    : '<li class="missing">Nada pendiente en este período.</li>';
+  const items = [];
+  LISTA.forEach(r=>{
+    const esperando = [], falta = [];
+    DATA.seguros.forEach(sg=>{ const c=r[sg.key]; if(!c) return;
+      if(c.estado==="ingresado") esperando.push({sg,c});
+      else if(c.estado==="falta"||c.estado==="verificar") falta.push({sg,c});
+    });
+    if(esperando.length||falta.length) items.push({r, esperando, falta});
+  });
+  const cont = document.getElementById("pend");
+  if(!items.length){ cont.innerHTML = '<p class="missing" style="margin:0">Nada pendiente en este período.</p>'; return; }
+
+  const orden = p => { const i = DATA.personas.indexOf(p); return i<0 ? 99 : i; };
+  items.sort((a,b)=> b.r.mes.localeCompare(a.r.mes) || orden(a.r.persona)-orden(b.r.persona));
+
+  const chip = (x, clase, icono) => {
+    const tip = tipData(esc(x.sg.nombre), [
+      ["Estado:", (DATA.leyenda && DATA.leyenda[x.c.estado]) || x.c.estado],
+      x.c.solicitud ? ["Solicitud:", esc(x.c.solicitud)] : null,
+      x.c.nota ? ["Nota:", esc(x.c.nota)] : null]);
+    return `<span class="pchip ${clase} cellwrap" data-tip="${tip}">${icono} ${esc(x.sg.nombre)}</span>`;
+  };
+  const filas = items.map(it=>{
+    const extra = it.r.concepto && it.r.concepto!=="Psicoterapia"
+      ? ` <span class="note">· ${esc(it.r.concepto)}</span>` : "";
+    return `<tr><td>${esc(it.r.persona)}${extra}</td><td class="mes">${mesLabel(it.r.mes)}</td>`
+      + `<td>${it.esperando.length ? it.esperando.map(x=>chip(x,"wait","◷")).join(" ") : '<span class="missing">—</span>'}</td>`
+      + `<td>${it.falta.length ? it.falta.map(x=>chip(x,"bad","✕")).join(" ") : '<span class="missing">—</span>'}</td></tr>`;
+  }).join("");
+
+  const nEsp = items.reduce((n,it)=>n+it.esperando.length,0);
+  const nFal = items.reduce((n,it)=>n+it.falta.length,0);
+  cont.innerHTML =
+    `<p class="pendres">Hay <b>${nEsp}</b> solicitud(es) esperando respuesta y <b>${nFal}</b> sin rendir.</p>`
+    + `<div style="overflow-x:auto"><table class="pendt">`
+    + `<thead><tr><th>Persona</th><th>Mes</th>`
+    + `<th>Esperando respuesta${infoIcon("Esperando respuesta",[
+        ["Qué es:","Ya se envió la solicitud y falta que la entidad resuelva."],
+        ["Qué hacer:","nada, salvo revisar si se está demorando mucho."]])}</th>`
+    + `<th>Falta rendir${infoIcon("Falta rendir",[
+        ["Qué es:","Todavía no se envía la solicitud, o fue rechazada y hay que reingresarla."],
+        ["Qué hacer:","esto sí depende de ti. Es plata que no va a llegar si no se rinde."]])}</th>`
+    + `</tr></thead><tbody>${filas}</tbody></table></div>`;
 }
 
 // ---------- Render ----------
