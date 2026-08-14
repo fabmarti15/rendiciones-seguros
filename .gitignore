@@ -13,3 +13,6 @@ CONTEXTO.md
 PASO-A-PASO-Bupa-Sura.md
 archivo/
 tmp/
+_to_delete/
+.tmp.drive*
+node_modules/
