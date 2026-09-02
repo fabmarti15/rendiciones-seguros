@@ -59,7 +59,7 @@
   .ppl tr.rses td{font-size:11px;color:var(--na);padding-top:0;font-weight:400;}
   .ppl tr.rses td.sub{font-style:italic;padding-left:14px;}
   .ppl td.pc{color:var(--mut);}
-  .mk{margin-left:5px;font-size:11px;font-weight:400;vertical-align:middle;}
+  .mk{display:block;font-size:10px;font-weight:500;margin-top:2px;}
   .ppl td.nses{color:var(--mut);font-weight:400;}
   .missing{color:var(--na);font-weight:400;}
   #tabla-psico,#tabla-otros{min-width:820px;}
@@ -73,7 +73,9 @@
   td.cost.neg{color:var(--bad);}
   tr.mesrow td{font-weight:600;font-size:12px;color:var(--txt);background:var(--line2);
        border-bottom:1px solid var(--line);white-space:nowrap;letter-spacing:.01em;}
-  .pill{display:inline-block;font-size:12px;}
+  .pill{display:inline-block;font-size:10.5px;font-weight:600;letter-spacing:.02em;border-radius:20px;padding:2px 8px;white-space:nowrap;border:1px solid transparent;}
+  .pill.wait{background:#fdf6e3;border-color:#ecd9ae;} .pill.bad{background:#fdf0ee;border-color:#f0cdc8;}
+  .pill.na{background:#f4f4f4;border-color:#e3e3e3;font-weight:500;}
   .monto{display:block;font-size:11px;color:var(--mut);margin-top:1px;}
   .pagado{font-variant-numeric:tabular-nums;}
   .ses{display:block;font-size:10px;color:var(--na);margin-top:1px;font-weight:400;}
@@ -139,9 +141,10 @@
       <div style="overflow-x:auto"><table id="tabla-psico"></table></div>
       <div class="leg">
         <span>Un monto = ya pagado</span>
-        <span><span class="wait">◷</span> Esperando respuesta</span>
-        <span><span class="bad">✕</span> Sin rendir o rechazado</span>
-        <span><span class="na">–</span> No aplica</span>
+        <span><span class="pill wait">Esperando</span> ya se rindió, falta que resuelvan</span>
+        <span><span class="pill bad">Pendiente de subir</span> todavía no se envía</span>
+        <span><span class="pill bad">Rechazado</span> devuelta, hay que reingresar</span>
+        <span><span class="pill na">No aplica</span> / <span class="pill na">Sin sesión</span></span>
         <span>El <b>*</b> marca cálculo parcial.</span>
       </div>
     </div>
@@ -177,12 +180,19 @@ const CLP = n => "$" + (n||0).toLocaleString("es-CL");
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const mesLabel = m => { const [y,mm] = m.split("-"); return (MESES[+mm-1]||mm) + " " + y; };
 
-const EST = { liquidado:["ok","✓"], ingresado:["wait","◷"], falta:["bad","✕"],
-              verificar:["wait","!"], novino:["na","–"], na:["na","–"] };
+const EST = { liquidado:["ok","Pagado"], ingresado:["wait","Esperando"], falta:["bad","Pendiente de subir"],
+              verificar:["wait","Verificar"], novino:["na","Sin sesión"], na:["na","No aplica"] };
+// Etiqueta corta de una celda: "falta" se separa en Rechazado vs Pendiente de subir
+function etq(c){
+  const [cls,txt] = EST[c.estado] || ["na","—"];
+  if(c.estado==="falta" && /rechaz|devuelt/i.test((c.estado_detalle||"")+" "+(c.nota||""))) return [cls,"Rechazado"];
+  if(c.estado==="ingresado" && /rechaz|devuelt/i.test(c.estado_detalle||"")) return [cls,"Devuelta"];
+  return [cls,txt];
+}
 const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 function cell(c, r, s){
   if(!c) return '<span class="na">—</span>';
-  const [cls,ic] = EST[c.estado] || ["na","—"];
+  const [cls,ic] = etq(c);
   const estTxt = (DATA.leyenda && DATA.leyenda[c.estado]) || c.estado;
   let rows = `<div class="h">${esc(s.nombre)} · ${esc(r.persona)} · ${mesLabel(r.mes)}</div>`;
   rows += `<div class="r"><span class="k">Estado:</span> ${esc(estTxt)}</div>`;
@@ -345,16 +355,16 @@ function pintarPersonas(id, LISTA){
           const cero = pag.filter(r=>r[sg.key].monto===0);
           const na = con("na").concat(con("novino"));
           let marca = "";
-          if(ing.length) marca = `<span class="mk wait">◷</span>`;
-          else if(fal.length) marca = `<span class="mk bad">✕</span>`;
-          else if(!f.porSeg[sg.key] && na.length) marca = `<span class="mk na">–</span>`;
+          if(ing.length) marca = `<span class="mk wait">esperando ${ing.length}</span>`;
+          else if(fal.length) marca = `<span class="mk bad">pendiente ${fal.length}</span>`;
+          else if(!f.porSeg[sg.key] && na.length) marca = `<span class="mk na">no aplica</span>`;
           const tip = tipData(esc(sg.nombre)+" · "+f.pe, [
             ["Ya pagado:", "<b>"+CLP(f.porSeg[sg.key])+"</b>"
               + (pag.length ? " en "+pag.length+" mes(es): "+esc(mesesDe(pag)) : "")],
-            ing.length ? ["◷ Esperando respuesta:", esc(mesesDe(ing))+" — ya se rindió, falta que resuelvan."] : null,
-            fal.length ? ["✕ Sin rendir:", esc(mesesDe(fal))+" — todavía no se envía la solicitud (o fue rechazada)."] : null,
+            ing.length ? ["Esperando respuesta:", esc(mesesDe(ing))+" — ya se rindió, falta que resuelvan."] : null,
+            fal.length ? ["Sin rendir:", esc(mesesDe(fal))+" — todavía no se envía la solicitud (o fue rechazada)."] : null,
             cero.length ? ["Pagado $0:", esc(mesesDe(cero))+" — resuelto, pero sin plata: topó el límite de la póliza."] : null,
-            na.length ? ["– No aplica:", esc(mesesDe(na))+" — este seguro no cubre ese mes."] : null,
+            na.length ? ["No aplica:", esc(mesesDe(na))+" — este seguro no cubre ese mes."] : null,
             (!f.porSeg[sg.key] && !ing.length && !fal.length && !na.length)
               ? ["Por qué $0:", "no hay registros de este seguro en el período."] : null]);
           return `<td><span class="cellwrap" data-tip="${tip}">${CLP(f.porSeg[sg.key])}${marca}</span></td>`;
@@ -428,7 +438,7 @@ function pintarDetalle(id, LISTA, mostrarConcepto){
     + DATA.seguros.map(s=>`<th>${s.nombre}</th>`).join("")
     + `<th>Total cobertura${infoIcon("Total cobertura",[
         ["Qué es:","Lo que ya devolvieron las 3 entidades por esa boleta."],
-        ["No incluye:","Solicitudes en revisión (○) ni lo que falta rendir (✕)."]])}</th>`
+        ["No incluye:","Solicitudes esperando respuesta ni lo pendiente de subir."]])}</th>`
     + `<th>Costo real${infoIcon("Costo real",[
         ["Qué es:","La plata que quedó de tu bolsillo ese mes."],
         ["Fórmula:","Total boleta − Total cobertura."],
@@ -514,19 +524,20 @@ function pintarPendientes(LISTA){
   const orden = p => { const i = DATA.personas.indexOf(p); return i<0 ? 99 : i; };
   items.sort((a,b)=> b.r.mes.localeCompare(a.r.mes) || orden(a.r.persona)-orden(b.r.persona));
 
-  const chip = (x, clase, icono) => {
+  const chip = (x, clase) => {
     const tip = tipData(esc(x.sg.nombre), [
       ["Estado:", (DATA.leyenda && DATA.leyenda[x.c.estado]) || x.c.estado],
       x.c.solicitud ? ["Solicitud:", esc(x.c.solicitud)] : null,
       x.c.nota ? ["Nota:", esc(x.c.nota)] : null]);
-    return `<span class="pchip ${clase} cellwrap" data-tip="${tip}">${icono} ${esc(x.sg.nombre)}</span>`;
+    const [,txt] = etq(x.c);
+    return `<span class="pchip ${clase} cellwrap" data-tip="${tip}">${esc(x.sg.nombre)} · ${txt.toLowerCase()}</span>`;
   };
   const filas = items.map(it=>{
     const extra = it.r.concepto && it.r.concepto!=="Psicoterapia"
       ? ` <span class="note">· ${esc(it.r.concepto)}</span>` : "";
     return `<tr><td>${esc(it.r.persona)}${extra}</td><td class="mes">${mesLabel(it.r.mes)}</td>`
-      + `<td>${it.esperando.length ? it.esperando.map(x=>chip(x,"wait","◷")).join(" ") : '<span class="missing">—</span>'}</td>`
-      + `<td>${it.falta.length ? it.falta.map(x=>chip(x,"bad","✕")).join(" ") : '<span class="missing">—</span>'}</td></tr>`;
+      + `<td>${it.esperando.length ? it.esperando.map(x=>chip(x,"wait")).join(" ") : '<span class="missing">—</span>'}</td>`
+      + `<td>${it.falta.length ? it.falta.map(x=>chip(x,"bad")).join(" ") : '<span class="missing">—</span>'}</td></tr>`;
   }).join("");
 
   const nEsp = items.reduce((n,it)=>n+it.esperando.length,0);
