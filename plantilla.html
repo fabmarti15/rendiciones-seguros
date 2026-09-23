@@ -557,9 +557,30 @@ function pintarPendientes(LISTA){
 
 // ---------- Render ----------
 const esPsico = r => (r.concepto||"").toLowerCase().includes("psicoterapia");
+// Psicoterapia: si a alguien le falta el registro de un mes, se muestra "Pendiente de subir".
+// Desde su primer mes con registro hasta el mes actual; se salta los meses sin sesión de nadie (ej. febrero).
+function completarPendientes(regs){
+  const hoy = new Date();
+  const mesHoy = hoy.getFullYear()+"-"+String(hoy.getMonth()+1).padStart(2,"0");
+  const psico = regs.filter(esPsico);
+  const sig = m => { let [y,mm]=m.split("-").map(Number); mm++; if(mm>12){mm=1;y++;} return y+"-"+String(mm).padStart(2,"0"); };
+  const sinSesion = m => { const rs = psico.filter(r=>r.mes===m);
+    return rs.length>0 && rs.every(r=>DATA.seguros.every(s=>!r[s.key] || ["novino","na"].includes(r[s.key].estado))); };
+  const extra = [];
+  [...new Set(psico.map(r=>r.persona))].forEach(p=>{
+    const meses = psico.filter(r=>r.persona===p).map(r=>r.mes).sort();
+    for(let m=meses[0]; m<=mesHoy; m=sig(m)){
+      if(meses.includes(m) || sinSesion(m) || m.endsWith("-02")) continue;
+      extra.push({mes:m, persona:p, concepto:"Psicoterapia", _auto:true,
+        isapremv:{estado:"falta", nota:"Sin boleta registrada este mes."},
+        bupa:{estado:"falta", nota:"Se rinde después de la Isapre."}});
+    }
+  });
+  return regs.concat(extra);
+}
 function render(){
   renderRango();
-  const REGS = DATA.registros.filter(r=> r.mes>=DESDE && (!HASTA || r.mes<=HASTA));
+  const REGS = completarPendientes(DATA.registros).filter(r=> r.mes>=DESDE && (!HASTA || r.mes<=HASTA));
   document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
   const psico = REGS.filter(esPsico), otros = REGS.filter(r=>!esPsico(r));
   pintarResumen("tot-psico", psico);
