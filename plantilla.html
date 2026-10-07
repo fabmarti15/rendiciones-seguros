@@ -133,6 +133,10 @@
     </div>
   </div>
 
+  <div class="card" id="revision"></div>
+
+  <div class="card"><h2>Pendiente</h2><div class="pend" id="pend"></div></div>
+
   <section class="sec">
     <h3 class="sech">Psicoterapia</h3>
     <div class="card"><h2>Resumen</h2><div class="tot" id="tot-psico"></div></div>
@@ -140,7 +144,7 @@
     <div class="card"><h2>Detalle por mes</h2>
       <div style="overflow-x:auto"><table id="tabla-psico"></table></div>
       <div class="leg">
-        <span>Un monto = ya pagado</span>
+        <span>Un monto = reembolso liquidado</span>
         <span><span class="pill wait">Esperando</span> ya se rindió, falta que resuelvan</span>
         <span><span class="pill bad">Pendiente de subir</span> todavía no se envía</span>
         <span><span class="pill bad">Rechazado</span> devuelta, hay que reingresar</span>
@@ -159,12 +163,11 @@
     </div>
   </section>
 
-  <div class="card"><h2>Pendiente</h2><div class="pend" id="pend"></div></div>
 
   <!-- Editor -->
   <div class="card hidden" id="editor">
     <h2>Editar datos</h2>
-    <p class="sub">Edita el JSON y descarga el <b>index.html</b> actualizado. Luego súbelo a GitHub.</p>
+    <p class="sub">Edita el JSON y descarga el <b>index.html</b> actualizado. Es una copia local; publicar requiere cifrar.</p>
     <textarea id="json"></textarea>
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
       <button onclick="applyEdit()">Aplicar (previsualizar)</button>
@@ -180,13 +183,17 @@ const CLP = n => "$" + (n||0).toLocaleString("es-CL");
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const mesLabel = m => { const [y,mm] = m.split("-"); return (MESES[+mm-1]||mm) + " " + y; };
 
-const EST = { liquidado:["ok","Pagado"], ingresado:["wait","Esperando"], falta:["bad","Pendiente de subir"],
+const EST = { liquidado:["ok","Liquidado"], ingresado:["wait","Esperando"], falta:["bad","Pendiente de subir"],
               verificar:["wait","Verificar"], novino:["na","Sin sesión"], na:["na","No aplica"] };
 // Etiqueta corta de una celda: "falta" se separa en Rechazado vs Pendiente de subir
 function etq(c){
   const [cls,txt] = EST[c.estado] || ["na","—"];
   if(c.estado==="falta" && /rechaz|devuelt/i.test((c.estado_detalle||"")+" "+(c.nota||""))) return [cls,"Rechazado"];
   if(c.estado==="ingresado" && /rechaz|devuelt/i.test(c.estado_detalle||"")) return [cls,"Devuelta"];
+  if(c.estado_detalle === "SIN REGISTRO") return ["wait","Sin registro"];
+  if(c.estado_detalle && /BLOQUEADA/.test(c.estado_detalle)) return ["wait","Bloqueada"];
+  if(c.estado_detalle && /RECLAMAR/.test(c.estado_detalle)) return ["bad","Reclamar"];
+  if(c.estado_detalle && /REVISAR TOPE/.test(c.estado_detalle)) return ["wait","Revisar tope"];
   return [cls,txt];
 }
 const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -285,7 +292,7 @@ function pintarResumen(id, LISTA){
   html += DATA.seguros.map(sg => tarjeta("", sg.nombre, CLP(tot[sg.key]), pct(tot[sg.key]),
     tipData(sg.nombre, [
       ["Qué es:", "La plata que <b>"+esc(sg.nombre)+"</b> ya te devolvió."],
-      ["Cómo se calcula:", "Sumo solo los reembolsos <b>ya pagados</b>. Los que están en trámite todavía no cuentan."],
+      ["Cómo se calcula:", "Sumo solo los reembolsos <b>liquidados</b>. Los que están en trámite todavía no cuentan."],
       pctN(tot[sg.key])!==null ? ["Qué significa el %:",
         "De cada $100 que costaron las sesiones, "+esc(sg.nombre)+" puso <b>$"+pctN(tot[sg.key])+"</b>."] : null,
       ses && tot[sg.key] ? ["Por sesión:", CLP(Math.round(tot[sg.key]/ses))] : null]))).join("");
@@ -336,7 +343,7 @@ function pintarPersonas(id, LISTA){
     const tipCob = tipData("Total cobertura · "+f.pe, [
       ...DATA.seguros.map(sg=>[esc(sg.nombre)+":", CLP(f.porSeg[sg.key])]),
       ["Total:", "<b>"+CLP(f.cobertura)+"</b>"],
-      ["Solo cuenta:","lo ya pagado. Lo que está en trámite no suma."]]);
+      ["Solo cuenta:","lo liquidado. Lo que está en trámite no suma."]]);
     const tipNeto = tipData("Costo real · "+f.pe, [
       ["Qué es:","La plata que quedó de tu bolsillo."],
       ["Boletas:", CLP(f.boletas)],
@@ -363,7 +370,7 @@ function pintarPersonas(id, LISTA){
               + (pag.length ? " en "+pag.length+" mes(es): "+esc(mesesDe(pag)) : "")],
             ing.length ? ["Esperando respuesta:", esc(mesesDe(ing))+" — ya se rindió, falta que resuelvan."] : null,
             fal.length ? ["Sin rendir:", esc(mesesDe(fal))+" — todavía no se envía la solicitud (o fue rechazada)."] : null,
-            cero.length ? ["Pagado $0:", esc(mesesDe(cero))+" — resuelto, pero sin plata: topó el límite de la póliza."] : null,
+            cero.length ? ["Liquidado $0:", esc(mesesDe(cero))+" — resuelto, pero sin plata: topó el límite de la póliza."] : null,
             na.length ? ["No aplica:", esc(mesesDe(na))+" — este seguro no cubre ese mes."] : null,
             (!f.porSeg[sg.key] && !ing.length && !fal.length && !na.length)
               ? ["Por qué $0:", "no hay registros de este seguro en el período."] : null]);
@@ -402,7 +409,7 @@ function pintarPersonas(id, LISTA){
     + DATA.seguros.map(sg=>`<th>${sg.nombre}${infoIcon(sg.nombre,[
         ["Arriba:","lo que <b>"+esc(sg.nombre)+"</b> ya pagó, sumado."],
         ["Abajo:","lo mismo por sesión."],
-        ["Solo cuenta:","reembolsos ya pagados."]])}</th>`).join("")
+        ["Solo cuenta:","reembolsos liquidados."]])}</th>`).join("")
     + `<th>Total cobertura${infoIcon("Total cobertura",[
         ["Qué es:","Lo que devolvieron las tres entidades juntas."],
         ["Abajo:","lo mismo por sesión."]])}</th>`
@@ -537,22 +544,22 @@ function pintarPendientes(LISTA){
       ? ` <span class="note">· ${esc(it.r.concepto)}</span>` : "";
     return `<tr><td>${esc(it.r.persona)}${extra}</td><td class="mes">${mesLabel(it.r.mes)}</td>`
       + `<td>${it.esperando.length ? it.esperando.map(x=>chip(x,"wait")).join(" ") : '<span class="missing">—</span>'}</td>`
-      + `<td>${it.falta.length ? it.falta.map(x=>chip(x,"bad")).join(" ") : '<span class="missing">—</span>'}</td></tr>`;
+      + `<td>${it.falta.length ? it.falta.map(x=>chip(x,"bad")).join(" ") : '<span class="missing">—</span>'}</td><td>${[...it.esperando,...it.falta].map(x=>`<div><b>${esc(x.sg.nombre)}:</b> ${esc(x.c.accion||'Revisar antecedentes antes de rendir.')}</div>`).join('')}</td></tr>`;
   }).join("");
 
   const nEsp = items.reduce((n,it)=>n+it.esperando.length,0);
   const nFal = items.reduce((n,it)=>n+it.falta.length,0);
   cont.innerHTML =
-    `<p class="pendres">Hay <b>${nEsp}</b> solicitud(es) esperando respuesta y <b>${nFal}</b> sin rendir.</p>`
+    `<p class="pendres">Hay <b>${nEsp}</b> solicitud(es) registradas en espera y <b>${nFal}</b> por gestionar o verificar.</p>`
     + `<div style="overflow-x:auto"><table class="pendt">`
     + `<thead><tr><th>Persona</th><th>Mes</th>`
     + `<th>Esperando respuesta${infoIcon("Esperando respuesta",[
         ["Qué es:","Ya se envió la solicitud y falta que la entidad resuelva."],
         ["Qué hacer:","nada, salvo revisar si se está demorando mucho."]])}</th>`
-    + `<th>Falta rendir${infoIcon("Falta rendir",[
-        ["Qué es:","Todavía no se envía la solicitud, o fue rechazada y hay que reingresarla."],
-        ["Qué hacer:","esto sí depende de ti. Es plata que no va a llegar si no se rinde."]])}</th>`
-    + `</tr></thead><tbody>${filas}</tbody></table></div>`;
+    + `<th>Por gestionar${infoIcon("Falta rendir",[
+        ["Qué es:","Solicitudes por rendir, bloqueadas o antecedentes que falta verificar."],
+        ["Qué hacer:","seguir la próxima acción; un registro faltante no confirma una deuda."]])}</th>`
+    + `<th>Próxima acción</th></tr></thead><tbody>${filas}</tbody></table></div>`;
 }
 
 // ---------- Render ----------
@@ -569,16 +576,18 @@ function completarPendientes(regs){
   const extra = [];
   [...new Set(psico.map(r=>r.persona))].forEach(p=>{
     const meses = psico.filter(r=>r.persona===p).map(r=>r.mes).sort();
-    for(let m=meses[0]; m<=mesHoy; m=sig(m)){
+    for(let m=meses[0]; m<mesHoy; m=sig(m)){
       if(meses.includes(m) || sinSesion(m) || m.endsWith("-02")) continue;
       extra.push({mes:m, persona:p, concepto:"Psicoterapia", _auto:true,
-        isapremv:{estado:"falta", nota:"Sin boleta registrada este mes."},
-        bupa:{estado:"falta", nota:"Se rinde después de la Isapre."}});
+        isapremv:{estado:"verificar", estado_detalle:"SIN REGISTRO", nota:"Sin boleta registrada este mes.", accion:"Confirmar si hubo atención y boleta; no asumir deuda."},
+        bupa:{estado:"verificar", estado_detalle:"SIN REGISTRO", nota:"Se rinde después de la Isapre.", accion:"Solo rendir si hubo atención y corresponde cobertura."}});
     }
   });
   return regs.concat(extra);
 }
 function render(){
+  const rev=DATA.revision;
+  document.getElementById("revision").innerHTML=rev ? `<h2>Estado de seguros · ${esc(rev.fecha)}</h2><ul>${rev.novedades.map(n=>`<li>${esc(n)}</li>`).join('')}</ul><p class="note">${esc(rev.alcance)}</p><p class="note">Los montos Bupa provienen de liquidaciones aprobadas; los abonos bancarios no se han conciliado. El mes en curso no se genera como deuda pendiente.</p>` : '';
   renderRango();
   const REGS = completarPendientes(DATA.registros).filter(r=> r.mes>=DESDE && (!HASTA || r.mes<=HASTA));
   document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");

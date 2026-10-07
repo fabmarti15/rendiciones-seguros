@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Inserta datos.json en index.html y genera el tablero público.
+// Genera la vista local; index.html queda reservado al contenido cifrado.
 // Uso: node build.js
 const fs = require('fs');
 const path = require('path');
@@ -14,5 +14,6 @@ const encoded = JSON.stringify(data)
   .replace(/\u2028/g, '\\u2028')
   .replace(/\u2029/g, '\\u2029');
 const out = tpl.replace('"__DATA_JSON__"', encoded);
-fs.writeFileSync(path.join(DIR, 'index.html'), out);
-console.log('✅ index.html público generado (' + data.length + ' bytes de datos).');
+fs.mkdirSync(path.join(DIR, 'tmp'), { recursive: true });
+fs.writeFileSync(path.join(DIR, 'tmp', 'tablero-local.html'), out);
+console.log('Vista local actualizada: tmp/tablero-local.html');
