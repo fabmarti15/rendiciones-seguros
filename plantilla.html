@@ -94,6 +94,14 @@
   .pendt td.mes{color:var(--mut);white-space:nowrap;}
   .pchip{display:inline-block;border:1px solid var(--line);border-radius:20px;
          padding:2px 10px;font-size:11px;margin:2px 4px 2px 0;white-space:nowrap;}
+  .cellmeta{display:block;font-size:11px;color:var(--mut);margin-top:3px;white-space:normal;overflow-wrap:anywhere;}
+  .pchip{white-space:normal;border-radius:8px;max-width:240px;}
+  @media(max-width:680px){
+    .pendt thead{display:none;} .pendt,.pendt tbody,.pendt tr,.pendt td{display:block;width:100%;}
+    .pendt tr{padding:10px 0;border-bottom:1px solid var(--line);}
+    .pendt td{border:0;padding:5px 0;}
+    .pendt td[data-label]::before{content:attr(data-label);display:block;font-size:10px;color:var(--mut);margin-bottom:3px;}
+  }
   .pchip.wait{color:var(--wait);border-color:#ecd9ae;}
   .pchip.bad{color:var(--bad);border-color:#f0cdc8;}
   .leg{color:var(--mut);font-size:12px;margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;}
@@ -135,7 +143,7 @@
 
   <div class="card" id="revision"></div>
 
-  <div class="card"><h2>Pendiente</h2><div class="pend" id="pend"></div></div>
+  <div class="card"><h2>Subido y pendiente</h2><div class="pend" id="pend"></div></div>
 
   <section class="sec">
     <h3 class="sech">Psicoterapia</h3>
@@ -144,10 +152,10 @@
     <div class="card"><h2>Detalle por mes</h2>
       <div style="overflow-x:auto"><table id="tabla-psico"></table></div>
       <div class="leg">
-        <span>Un monto = reembolso liquidado</span>
-        <span><span class="pill wait">Esperando</span> ya se rindió, falta que resuelvan</span>
-        <span><span class="pill bad">Pendiente de subir</span> todavía no se envía</span>
-        <span><span class="pill bad">Rechazado</span> devuelta, hay que reingresar</span>
+        <span>Un monto = liquidación informada; abono bancario no conciliado</span>
+        <span><span class="pill wait">En revisión</span> ya se envió; sin aprobación ni pago confirmado</span>
+        <span><span class="pill bad">Subir / subsanar</span> revisar la próxima acción</span>
+        <span><span class="pill wait">Por confirmar</span> verificar estado o cobertura antes de presentar</span>
         <span><span class="pill na">No aplica</span> / <span class="pill na">Sin sesión</span></span>
         <span>El <b>*</b> marca cálculo parcial.</span>
       </div>
@@ -183,13 +191,14 @@ const CLP = n => "$" + (n||0).toLocaleString("es-CL");
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const mesLabel = m => { const [y,mm] = m.split("-"); return (MESES[+mm-1]||mm) + " " + y; };
 
-const EST = { liquidado:["ok","Liquidado"], ingresado:["wait","Esperando"], falta:["bad","Pendiente de subir"],
-              verificar:["wait","Verificar"], novino:["na","Sin sesión"], na:["na","No aplica"] };
+const EST = { liquidado:["ok","Liquidado"], ingresado:["wait","En revisión"], falta:["bad","Subir / subsanar"],
+              verificar:["wait","Por confirmar"], novino:["na","Sin sesión"], na:["na","No aplica"] };
 // Etiqueta corta de una celda: "falta" se separa en Rechazado vs Pendiente de subir
 function etq(c){
   const [cls,txt] = EST[c.estado] || ["na","—"];
-  if(c.estado==="falta" && /rechaz|devuelt/i.test((c.estado_detalle||"")+" "+(c.nota||""))) return [cls,"Rechazado"];
-  if(c.estado==="ingresado" && /rechaz|devuelt/i.test(c.estado_detalle||"")) return [cls,"Devuelta"];
+  if(["falta","ingresado"].includes(c.estado) && /devuelt/i.test(c.estado_detalle||"")) return ["bad","Devuelta / subsanar"];
+  if(["falta","ingresado"].includes(c.estado) && /rechaz/i.test(c.estado_detalle||"")) return ["bad","Rechazada"];
+  if(/pendiente.*antecedentes/i.test(c.estado_detalle||"")) return ["wait","Antecedentes pendientes"];
   if(c.estado_detalle === "SIN REGISTRO") return ["wait","Sin registro"];
   if(c.estado_detalle && /BLOQUEADA/.test(c.estado_detalle)) return ["wait","Bloqueada"];
   if(c.estado_detalle && /RECLAMAR/.test(c.estado_detalle)) return ["bad","Reclamar"];
@@ -197,12 +206,25 @@ function etq(c){
   return [cls,txt];
 }
 const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const estadoTexto = c => ({liquidado:"Liquidación informada; abono bancario no conciliado", ingresado:"Enviada / en revisión; sin aprobación ni pago confirmado", falta:"Falta subir o subsanar; revisar próxima acción", verificar:"Estado o cobertura por confirmar"}[c.estado] || (DATA.leyenda && DATA.leyenda[c.estado]) || c.estado);
+function metaSolicitud(c){
+  const partes = [];
+  if(c.solicitud) partes.push("Solicitud " + esc(c.solicitud));
+  else if(c.folio) partes.push("Folio " + esc(c.folio));
+  if(Number.isFinite(c.monto_presentado)) partes.push("Boleta presentada: " + CLP(c.monto_presentado));
+  if(Number.isFinite(c.solicitado)) partes.push("Solicitado: " + CLP(c.solicitado));
+  return partes.length ? `<span class="cellmeta">${partes.join("<br>")}</span>` : "";
+}
 function cell(c, r, s){
   if(!c) return '<span class="na">—</span>';
   const [cls,ic] = etq(c);
-  const estTxt = (DATA.leyenda && DATA.leyenda[c.estado]) || c.estado;
+  const estTxt = estadoTexto(c);
   let rows = `<div class="h">${esc(s.nombre)} · ${esc(r.persona)} · ${mesLabel(r.mes)}</div>`;
   rows += `<div class="r"><span class="k">Estado:</span> ${esc(estTxt)}</div>`;
+  if(c.estado_detalle) rows += `<div class="r"><span class="k">Detalle:</span> ${esc(c.estado_detalle)}</div>`;
+  if(Number.isFinite(c.monto_presentado)) rows += `<div class="r"><span class="k">Boleta presentada:</span> ${CLP(c.monto_presentado)}</div>`;
+  if(Number.isFinite(c.solicitado)) rows += `<div class="r"><span class="k">Solicitado:</span> ${CLP(c.solicitado)}</div>`;
+  if(c.accion) rows += `<div class="r"><span class="k">Próxima acción:</span> ${esc(c.accion)}</div>`;
   if(c.monto!=null) rows += `<div class="r"><span class="k">Monto:</span> ${CLP(c.monto)}</div>`;
   if(c.solicitud) rows += `<div class="r"><span class="k">Solicitud:</span> ${esc(c.solicitud)}</div>`;
   if(c.folio) rows += `<div class="r"><span class="k">Folio:</span> ${esc(c.folio)}</div>`;
@@ -211,7 +233,7 @@ function cell(c, r, s){
   let inner;
   if(c.estado==="liquidado" && c.monto!=null) inner = `<span class="pagado">${CLP(c.monto)}</span>`;
   else inner = `<span class="pill ${cls}">${ic}</span>`;
-  return `<span class="cellwrap" data-tip="${tip}">${inner}</span>`;
+  return `<span class="cellwrap" data-tip="${tip}">${inner}${metaSolicitud(c)}</span>`;
 }
 // Tooltips genéricos (ℹ)
 function tipData(titulo, filas){
@@ -269,7 +291,7 @@ function pintarResumen(id, LISTA){
     const c=r[s.key]; if(c && c.estado==="liquidado" && c.monto){ tot[s.key]+=c.monto; grand+=c.monto; }
   }));
   const boletas = LISTA.reduce((n,r)=>n+(regDoc(r)||0),0);
-  const faltan = LISTA.filter(r=>regDoc(r)==null && regActivo(r)).length;
+  const faltan = LISTA.filter(r=>regDoc(r)==null && regActivo(r) && !r._auto).length;
   const ses = LISTA.reduce((n,r)=>n+(regSes(r)||0),0);
   const pctN = v => boletas ? Math.round(v/boletas*100) : null;
   const pct = v => pctN(v)===null ? "&nbsp;" : pctN(v)+"% de las boletas";
@@ -281,29 +303,29 @@ function pintarResumen(id, LISTA){
 
   let html = tarjeta("", "Total boletas",
     boletas ? CLP(boletas)+(faltan?'<span class="missing">*</span>':"") : '<span class="missing">—</span>',
-    faltan ? "faltan "+faltan+" por cargar" : "todas cargadas",
+    faltan ? faltan+" monto(s) por confirmar" : "montos registrados",
     tipData("Total boletas", [
       ["Qué es:", "Lo que costó la atención, sin descuentos."],
       ["Cómo se calcula:", "Sumo el monto de cada boleta del profesional en el período elegido."],
       ses ? ["Sesiones:", ses+" en total, a "+CLP(Math.round(boletas/ses))+" cada una"] : null,
-      faltan ? ["* Ojo:", "faltan "+faltan+" boletas por cargar, así que el total va a subir."]
-             : ["Estado:", "todas las boletas del período están cargadas."]]));
+      faltan ? ["* Ojo:", "faltan "+faltan+" montos por confirmar; el total es parcial."]
+             : ["Estado:", "todos los registros documentados del período tienen monto; los huecos del calendario no acreditan boletas pendientes."]]));
 
   html += DATA.seguros.map(sg => tarjeta("", sg.nombre, CLP(tot[sg.key]), pct(tot[sg.key]),
     tipData(sg.nombre, [
-      ["Qué es:", "La plata que <b>"+esc(sg.nombre)+"</b> ya te devolvió."],
+      ["Qué es:", "Liquidaciones informadas por <b>"+esc(sg.nombre)+"</b>; abonos bancarios no conciliados."],
       ["Cómo se calcula:", "Sumo solo los reembolsos <b>liquidados</b>. Los que están en trámite todavía no cuentan."],
       pctN(tot[sg.key])!==null ? ["Qué significa el %:",
-        "De cada $100 que costaron las sesiones, "+esc(sg.nombre)+" puso <b>$"+pctN(tot[sg.key])+"</b>."] : null,
+        "De cada $100 que costaron las sesiones, "+esc(sg.nombre)+" informó cobertura por <b>$"+pctN(tot[sg.key])+"</b>."] : null,
       ses && tot[sg.key] ? ["Por sesión:", CLP(Math.round(tot[sg.key]/ses))] : null]))).join("");
 
-  html += tarjeta("grand", "Total recuperado", CLP(grand), pct(grand),
-    tipData("Total recuperado", [
-      ["Qué es:", "Todo lo que te devolvieron entre las tres, sumado."],
+  html += tarjeta("grand", "Total liquidado informado", CLP(grand), pct(grand),
+    tipData("Total liquidado informado", [
+      ["Qué es:", "Suma de liquidaciones informadas por las entidades; no acredita depósitos bancarios."],
       ["Cómo se calcula:", DATA.seguros.map(sg=>esc(sg.nombre)+" "+CLP(tot[sg.key])).join(" + ")],
       pctN(grand)!==null ? ["Qué significa el %:",
-        "De cada $100 que costaron las sesiones, te devolvieron <b>$"+pctN(grand)+"</b> y pusiste <b>$"+(100-pctN(grand))+"</b> de tu bolsillo."] : null,
-      boletas ? ["De tu bolsillo:", "<b>"+CLP(boletas-grand)+"</b>"+(ses?" ("+CLP(Math.round((boletas-grand)/ses))+" por sesión)":"")] : null,
+        "De cada $100 que costaron las sesiones, se informó cobertura por <b>$"+pctN(grand)+"</b>; diferencia documental <b>$"+(100-pctN(grand))+"</b>."] : null,
+      boletas ? ["Diferencia documental:", "<b>"+CLP(boletas-grand)+"</b>"+(ses?" ("+CLP(Math.round((boletas-grand)/ses))+" por sesión)":"")] : null,
       enTramite ? ["Puede subir:", enTramite+" solicitud(es) todavía en trámite."] : null]));
 
   document.getElementById(id).innerHTML = html;
@@ -314,7 +336,7 @@ function pintarPersonas(id, LISTA){
   const filas = DATA.personas.map(pe=>{
     const rs = LISTA.filter(r=>r.persona===pe);
     if(!rs.length) return null;
-    const conDoc = rs.filter(r=>regDoc(r)!=null), sinDoc = rs.filter(r=>regDoc(r)==null && regActivo(r));
+    const conDoc = rs.filter(r=>regDoc(r)!=null), sinDoc = rs.filter(r=>regDoc(r)==null && regActivo(r) && !r._auto);
     const porSeg = {}; DATA.seguros.forEach(sg=>porSeg[sg.key]=0);
     const segDoc = {}; DATA.seguros.forEach(sg=>segDoc[sg.key]=0);
     rs.forEach(r=>DATA.seguros.forEach(sg=>{ const c=r[sg.key];
@@ -344,11 +366,11 @@ function pintarPersonas(id, LISTA){
       ...DATA.seguros.map(sg=>[esc(sg.nombre)+":", CLP(f.porSeg[sg.key])]),
       ["Total:", "<b>"+CLP(f.cobertura)+"</b>"],
       ["Solo cuenta:","lo liquidado. Lo que está en trámite no suma."]]);
-    const tipNeto = tipData("Costo real · "+f.pe, [
-      ["Qué es:","La plata que quedó de tu bolsillo."],
+    const tipNeto = tipData("Diferencia documental · "+f.pe, [
+      ["Qué es:","Boletas menos cobertura informada; no acredita movimientos bancarios."],
       ["Boletas:", CLP(f.boletas)],
       ["− Cobertura:", CLP(f.cobDoc)],
-      ["= Tu bolsillo:", "<b>"+CLP(f.neto)+"</b>"],
+      ["= Diferencia documental:", "<b>"+CLP(f.neto)+"</b>"],
       f.ses ? ["Por sesión:", CLP(Math.round(f.neto/f.ses))] : null]);
     const cob = f.boletas ? Math.round(f.cobDoc/f.boletas*100)+"%" : m;
 
@@ -356,7 +378,7 @@ function pintarPersonas(id, LISTA){
       + `<td class="nses">${f.ses||m}</td>`
       + `<td><span class="cellwrap" data-tip="${tipBoletas}">${f.boletas?CLP(f.boletas)+ast:m}</span></td>`
       + DATA.seguros.map(sg=>{
-          const con = e => f.rs.filter(r=>r[sg.key] && r[sg.key].estado===e);
+          const con = e => f.rs.filter(r=>!r._auto && r[sg.key] && r[sg.key].estado===e);
           const ing = con("ingresado"), fal = con("falta").concat(con("verificar"));
           const pag = f.rs.filter(r=>r[sg.key] && r[sg.key].estado==="liquidado");
           const cero = pag.filter(r=>r[sg.key].monto===0);
@@ -366,11 +388,11 @@ function pintarPersonas(id, LISTA){
           else if(fal.length) marca = `<span class="mk bad">pendiente ${fal.length}</span>`;
           else if(!f.porSeg[sg.key] && na.length) marca = `<span class="mk na">no aplica</span>`;
           const tip = tipData(esc(sg.nombre)+" · "+f.pe, [
-            ["Ya pagado:", "<b>"+CLP(f.porSeg[sg.key])+"</b>"
+            ["Liquidado informado:", "<b>"+CLP(f.porSeg[sg.key])+"</b>"
               + (pag.length ? " en "+pag.length+" mes(es): "+esc(mesesDe(pag)) : "")],
             ing.length ? ["Esperando respuesta:", esc(mesesDe(ing))+" — ya se rindió, falta que resuelvan."] : null,
-            fal.length ? ["Sin rendir:", esc(mesesDe(fal))+" — todavía no se envía la solicitud (o fue rechazada)."] : null,
-            cero.length ? ["Liquidado $0:", esc(mesesDe(cero))+" — resuelto, pero sin plata: topó el límite de la póliza."] : null,
+            fal.length ? ["Por gestionar o confirmar:", esc(mesesDe(fal))+" — revisar estado y próxima acción; puede existir una presentación anterior."] : null,
+            cero.length ? ["Liquidado $0:", esc(mesesDe(cero))+" — monto informado $0; revisar la causa en la liquidación."] : null,
             na.length ? ["No aplica:", esc(mesesDe(na))+" — este seguro no cubre ese mes."] : null,
             (!f.porSeg[sg.key] && !ing.length && !fal.length && !na.length)
               ? ["Por qué $0:", "no hay registros de este seguro en el período."] : null]);
@@ -411,14 +433,14 @@ function pintarPersonas(id, LISTA){
         ["Abajo:","lo mismo por sesión."],
         ["Solo cuenta:","reembolsos liquidados."]])}</th>`).join("")
     + `<th>Total cobertura${infoIcon("Total cobertura",[
-        ["Qué es:","Lo que devolvieron las tres entidades juntas."],
+        ["Qué es:","Cobertura informada por las tres entidades juntas; abonos bancarios no conciliados."],
         ["Abajo:","lo mismo por sesión."]])}</th>`
-    + `<th>Costo real${infoIcon("Costo real",[
-        ["Qué es:","Lo que quedó de tu bolsillo: boletas − cobertura."],
+    + `<th>Diferencia documental${infoIcon("Diferencia documental",[
+        ["Qué es:","Boletas menos cobertura informada; no acredita movimientos bancarios."],
         ["Abajo:","lo que te cuesta cada sesión después de los reembolsos."]])}</th>`
     + `<th>Cobertura${infoIcon("Cobertura",[
-        ["Qué es:","Qué parte del costo te devolvieron."],
-        ["Ejemplo:","90% significa que de cada $100 te devolvieron $90."]])}</th></tr></thead>`;
+        ["Qué es:","Qué parte del valor documentado tiene cobertura informada."],
+        ["Ejemplo:","90% significa cobertura informada por $90 de cada $100 documentados."]])}</th></tr></thead>`;
 
   const pie = `<tfoot><tr class="rtot"><td>Total</td><td class="nses">${T.ses||m}</td>`
     + `<td>${T.boletas?CLP(T.boletas)+astT:m}</td>`
@@ -444,10 +466,10 @@ function pintarDetalle(id, LISTA, mostrarConcepto){
         ["Si dice “—”:","Esa boleta todavía no está cargada."]])}</th>`
     + DATA.seguros.map(s=>`<th>${s.nombre}</th>`).join("")
     + `<th>Total cobertura${infoIcon("Total cobertura",[
-        ["Qué es:","Lo que ya devolvieron las 3 entidades por esa boleta."],
+        ["Qué es:","Cobertura informada por las entidades; abonos bancarios no conciliados."],
         ["No incluye:","Solicitudes esperando respuesta ni lo pendiente de subir."]])}</th>`
-    + `<th>Costo real${infoIcon("Costo real",[
-        ["Qué es:","La plata que quedó de tu bolsillo ese mes."],
+    + `<th>Diferencia documental${infoIcon("Diferencia documental",[
+        ["Qué es:","Boletas menos cobertura informada del mes; no acredita movimientos bancarios."],
         ["Fórmula:","Total boleta − Total cobertura."],
         ["Puede bajar:","Si hay solicitudes en curso, al liquidarse este número baja."]])}</th></tr>`;
   const meses = [...new Set(LISTA.map(r=>r.mes))].sort((a,b)=>b.localeCompare(a));
@@ -457,7 +479,7 @@ function pintarDetalle(id, LISTA, mostrarConcepto){
       .sort((a,b)=> orden(a.persona)-orden(b.persona) || a.concepto.localeCompare(b.concepto));
     const pagM = regsM.reduce((n,r)=>n+regPagado(r),0);
     const docM = regsM.reduce((n,r)=>n+(regDoc(r)||0),0);
-    const ast = regsM.some(r=>regDoc(r)==null && regActivo(r)) ? '<span class="missing">*</span>' : "";
+    const ast = regsM.some(r=>regDoc(r)==null && regActivo(r) && !r._auto) ? '<span class="missing">*</span>' : "";
     const costoM = docM ? CLP(docM - regsM.filter(r=>regDoc(r)!=null).reduce((n,r)=>n+regPagado(r),0)) + ast : miss;
     const segM = {}; DATA.seguros.forEach(s=>segM[s.key]=regsM.reduce((n,r)=>{
       const c=r[s.key]; return n + (c && c.estado==="liquidado" && Number.isFinite(c.monto) ? c.monto : 0); },0));
@@ -492,14 +514,14 @@ function pintarDetalle(id, LISTA, mostrarConcepto){
         doc!=null ? ["Cubre:", Math.round(pag/doc*100)+"% de la boleta"] : null,
         pend.length ? ["Pendiente en:", esc(pend.join(", "))] : null]);
       const tipCos = doc==null
-        ? wrapTip(miss, `Costo real · ${r.persona} · ${mesLabel(r.mes)}`, [
+        ? wrapTip(miss, `Diferencia documental · ${r.persona} · ${mesLabel(r.mes)}`, [
             ["No calculable:","falta el monto de la boleta."],
             ["Ya recuperado:", CLP(pag)]])
-        : wrapTip(CLP(doc-pag), `Costo real · ${r.persona} · ${mesLabel(r.mes)}`, [
+        : wrapTip(CLP(doc-pag), `Diferencia documental · ${r.persona} · ${mesLabel(r.mes)}`, [
             ["Boleta:", CLP(doc)],
             ...detallePagos(r),
             ["− Cobertura:", CLP(pag)],
-            ["= De tu bolsillo:", "<b>"+CLP(doc-pag)+"</b>"],
+            ["= Diferencia documental:", "<b>"+CLP(doc-pag)+"</b>"],
             doc-pag<0 ? ["Negativo:","recuperaste más de lo que costó la boleta. Suele pasar cuando Sura y Bupa reembolsan sobre el mismo copago. Vale la pena revisarlo."] : null,
             pend.length ? ["Ojo:", "hay solicitudes en curso en "+esc(pend.join(", "))+"; puede bajar."] : null]);
       body += `<tr><td class="per">${esc(r.persona)}${extra}${etiqSes}</td><td class="money doc">${tipDoc}${doc!=null?porSes(doc,ns):""}</td>`
@@ -518,57 +540,54 @@ function pintarDetalle(id, LISTA, mostrarConcepto){
 function pintarPendientes(LISTA){
   const items = [];
   LISTA.forEach(r=>{
-    const esperando = [], falta = [];
+    const esperando = [], falta = [], confirmar = [];
     DATA.seguros.forEach(sg=>{ const c=r[sg.key]; if(!c) return;
       if(c.estado==="ingresado") esperando.push({sg,c});
-      else if(c.estado==="falta"||c.estado==="verificar") falta.push({sg,c});
+      else if(c.estado==="falta") falta.push({sg,c});
+      else if(c.estado==="verificar") confirmar.push({sg,c});
     });
-    if(esperando.length||falta.length) items.push({r, esperando, falta});
+    if(esperando.length||falta.length||confirmar.length) items.push({r, esperando, falta, confirmar});
   });
   const cont = document.getElementById("pend");
   if(!items.length){ cont.innerHTML = '<p class="missing" style="margin:0">Nada pendiente en este período.</p>'; return; }
-
   const orden = p => { const i = DATA.personas.indexOf(p); return i<0 ? 99 : i; };
   items.sort((a,b)=> b.r.mes.localeCompare(a.r.mes) || orden(a.r.persona)-orden(b.r.persona));
-
   const chip = (x, clase) => {
     const tip = tipData(esc(x.sg.nombre), [
-      ["Estado:", (DATA.leyenda && DATA.leyenda[x.c.estado]) || x.c.estado],
+      ["Estado:", esc(estadoTexto(x.c))],
+      x.c.estado_detalle ? ["Detalle:", esc(x.c.estado_detalle)] : null,
       x.c.solicitud ? ["Solicitud:", esc(x.c.solicitud)] : null,
-      x.c.nota ? ["Nota:", esc(x.c.nota)] : null]);
+      Number.isFinite(x.c.solicitado) ? ["Solicitado:", CLP(x.c.solicitado)] : null,
+      x.c.nota ? ["Historial:", esc(x.c.nota)] : null]);
     const [,txt] = etq(x.c);
-    return `<span class="pchip ${clase} cellwrap" data-tip="${tip}">${esc(x.sg.nombre)} · ${txt.toLowerCase()}</span>`;
+    return `<span class="pchip ${clase} cellwrap" data-tip="${tip}">${esc(x.sg.nombre)} · ${txt.toLowerCase()}${metaSolicitud(x.c)}</span>`;
   };
+  const grupo = (xs, cls) => xs.length ? xs.map(x=>chip(x,cls)).join(" ") : '<span class="missing">—</span>';
   const filas = items.map(it=>{
-    const extra = it.r.concepto && it.r.concepto!=="Psicoterapia"
-      ? ` <span class="note">· ${esc(it.r.concepto)}</span>` : "";
-    return `<tr><td>${esc(it.r.persona)}${extra}</td><td class="mes">${mesLabel(it.r.mes)}</td>`
-      + `<td>${it.esperando.length ? it.esperando.map(x=>chip(x,"wait")).join(" ") : '<span class="missing">—</span>'}</td>`
-      + `<td>${it.falta.length ? it.falta.map(x=>chip(x,"bad")).join(" ") : '<span class="missing">—</span>'}</td><td>${[...it.esperando,...it.falta].map(x=>`<div><b>${esc(x.sg.nombre)}:</b> ${esc(x.c.accion||'Revisar antecedentes antes de rendir.')}</div>`).join('')}</td></tr>`;
+    const extra = it.r.concepto && it.r.concepto!=="Psicoterapia" ? ` <span class="note">· ${esc(it.r.concepto)}</span>` : "";
+    const boleta = Number.isFinite(it.r.monto_documento) ? `<span class="cellmeta">Boleta${it.r.folio_boleta ? " "+esc(it.r.folio_boleta) : ""}: ${CLP(it.r.monto_documento)}</span>` : "";
+    const auto = it.r._auto ? '<span class="cellmeta">Sin registro documental; no acredita deuda.</span>' : "";
+    return `<tr><td data-label="Persona">${esc(it.r.persona)}${extra}${boleta}${auto}</td><td data-label="Mes" class="mes">${mesLabel(it.r.mes)}</td>`
+      + `<td data-label="Enviada / en revisión">${grupo(it.esperando,"wait")}</td>`
+      + `<td data-label="Falta subir / subsanar">${grupo(it.falta,"bad")}</td>`
+      + `<td data-label="Por confirmar">${grupo(it.confirmar,"wait")}</td>`
+      + `<td data-label="Próxima acción">${[...it.esperando,...it.falta,...it.confirmar].map(x=>`<div><b>${esc(x.sg.nombre)}:</b> ${esc(x.c.accion||'Revisar antecedentes antes de rendir.')}</div>`).join('')}</td></tr>`;
   }).join("");
-
-  const nEsp = items.reduce((n,it)=>n+it.esperando.length,0);
-  const nFal = items.reduce((n,it)=>n+it.falta.length,0);
-  cont.innerHTML =
-    `<p class="pendres">Hay <b>${nEsp}</b> solicitud(es) registradas en espera y <b>${nFal}</b> por gestionar o verificar.</p>`
-    + `<div style="overflow-x:auto"><table class="pendt">`
-    + `<thead><tr><th>Persona</th><th>Mes</th>`
-    + `<th>Esperando respuesta${infoIcon("Esperando respuesta",[
-        ["Qué es:","Ya se envió la solicitud y falta que la entidad resuelva."],
-        ["Qué hacer:","nada, salvo revisar si se está demorando mucho."]])}</th>`
-    + `<th>Por gestionar${infoIcon("Falta rendir",[
-        ["Qué es:","Solicitudes por rendir, bloqueadas o antecedentes que falta verificar."],
-        ["Qué hacer:","seguir la próxima acción; un registro faltante no confirma una deuda."]])}</th>`
-    + `<th>Próxima acción</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+  const reales = items.filter(it=>!it.r._auto);
+  const nEsp = reales.reduce((n,it)=>n+it.esperando.length,0);
+  const nFal = reales.reduce((n,it)=>n+it.falta.length,0);
+  const nCon = reales.reduce((n,it)=>n+it.confirmar.length,0);
+  const nAuto = items.filter(it=>it.r._auto).length;
+  cont.innerHTML = `<p class="pendres"><b>${nEsp}</b> gestión(es) enviada(s) / en revisión · <b>${nFal}</b> por subir o subsanar · <b>${nCon}</b> por confirmar. Son gestiones por entidad, no boletas distintas.${nAuto ? " Además, "+nAuto+" hueco(s) de calendario sin documento, fuera de estos conteos; no acreditan deuda." : ""}</p>`
+    + '<div style="overflow-x:auto"><table class="pendt"><thead><tr><th>Persona</th><th>Mes</th><th>Enviada / en revisión</th><th>Falta subir / subsanar</th><th>Por confirmar</th><th>Próxima acción</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
 }
 
 // ---------- Render ----------
 const esPsico = r => (r.concepto||"").toLowerCase().includes("psicoterapia");
-// Psicoterapia: si a alguien le falta el registro de un mes, se muestra "Pendiente de subir".
-// Desde su primer mes con registro hasta el mes actual; se salta los meses sin sesión de nadie (ej. febrero).
+// Huecos de calendario: sólo por confirmar, sin asumir boleta ni deuda.
+// Se muestran hasta el mes anterior a la actualización; no cambian sin nueva evidencia.
 function completarPendientes(regs){
-  const hoy = new Date();
-  const mesHoy = hoy.getFullYear()+"-"+String(hoy.getMonth()+1).padStart(2,"0");
+  const mesHoy = DATA.actualizado && /^\d{4}-\d{2}/.test(DATA.actualizado) ? DATA.actualizado.slice(0,7) : "";
   const psico = regs.filter(esPsico);
   const sig = m => { let [y,mm]=m.split("-").map(Number); mm++; if(mm>12){mm=1;y++;} return y+"-"+String(mm).padStart(2,"0"); };
   const sinSesion = m => { const rs = psico.filter(r=>r.mes===m);
@@ -587,7 +606,7 @@ function completarPendientes(regs){
 }
 function render(){
   const rev=DATA.revision;
-  document.getElementById("revision").innerHTML=rev ? `<h2>Estado de seguros · ${esc(rev.fecha)}</h2><ul>${rev.novedades.map(n=>`<li>${esc(n)}</li>`).join('')}</ul><p class="note">${esc(rev.alcance)}</p><p class="note">Los montos Bupa provienen de liquidaciones aprobadas; los abonos bancarios no se han conciliado. El mes en curso no se genera como deuda pendiente.</p>` : '';
+  document.getElementById("revision").innerHTML=rev ? `<h2>Estado de seguros · ${esc(rev.fecha)}</h2><ul>${rev.novedades.map(n=>`<li>${esc(n)}</li>`).join('')}</ul><p class="note">${esc(rev.alcance)}</p><p class="note">Los importes liquidados son montos informados por Isapre o seguros; no acreditan abonos bancarios. Enviada / en revisión significa recepción, sin aprobación ni pago confirmado. Los huecos de calendario no acreditan deuda.</p>` : '';
   renderRango();
   const REGS = completarPendientes(DATA.registros).filter(r=> r.mes>=DESDE && (!HASTA || r.mes<=HASTA));
   document.getElementById("upd").textContent = "Actualizado: " + (DATA.actualizado||"");
