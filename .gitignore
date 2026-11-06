@@ -21,3 +21,6 @@ TRASPASO-*.md
 
 # Rendidor: cola, reglas y scripts con datos de salud (solo local)
 rendidor/
+
+# Instrucciones locales con información privada
+AGENTS.md
